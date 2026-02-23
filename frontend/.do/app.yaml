@@ -1,0 +1,9 @@
+name: hospital-visitor-management-frontend
+services:
+  - name: frontend
+    http_port: 80
+    routes:
+      - path: /
+    # For SPA support in DigitalOcean App Platform
+    error_document: index.html
+    catch_all_document: index.html

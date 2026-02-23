@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --his-brand-primary: #f26034;
+    --his-brand-dark: #b53d1c;
+    --his-slate: #475569;
+    --his-bg: #f8fafc;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased overflow-x-hidden overflow-y-auto h-screen w-screen selection:bg-brand-100;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .font-outfit {
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+@layer components {
+
+  /* Professional Software App Shell */
+  .his-shell {
+    @apply min-h-screen w-screen flex flex-col relative bg-[#f8fafc] overflow-x-hidden;
+  }
+
+  .his-premium-card {
+    @apply bg-white border border-slate-200 shadow-[0_8px_30px_#0000000a] rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_#0000000f] hover:-translate-y-1;
+  }
+
+  /* Professional Input */
+  .his-input-refined {
+    @apply w-full px-6 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-100 outline-none transition-all text-lg font-bold placeholder:text-slate-300;
+  }
+
+  /* High-Impact Action Button */
+  .his-btn-impact {
+    @apply px-8 py-5 bg-brand-500 text-white rounded-2xl font-bold text-lg hover:bg-brand-600 shadow-xl shadow-brand-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-tight;
+  }
+
+  .his-btn-secondary-impact {
+    @apply px-8 py-5 bg-white border-2 border-slate-200 text-slate-800 rounded-2xl font-bold text-lg hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-tight;
+  }
+
+  /* Medical Sub-grid */
+  .medical-subgrid {
+    background-image:
+      radial-gradient(#cbd5e1 1px, transparent 1px);
+    background-size: 30px 30px;
+    opacity: 0.4;
+  }
+
+  /* Professional Status Pill */
+  .system-status-pill {
+    @apply px-4 py-1.5 rounded-full bg-white border border-slate-100 shadow-sm text-[10px] font-bold uppercase tracking-widest flex items-center gap-2;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Animations */
+.reveal-up {
+  animation: revealUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
