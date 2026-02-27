@@ -9,6 +9,7 @@ router.get('/dashboard', protect, authorize('GUARD', 'ADMIN'), controller.getDas
 router.get('/slips', protect, authorize('GUARD', 'ADMIN'), controller.getSlips);
 router.post('/revoke-slip', protect, authorize('GUARD', 'ADMIN'), controller.revokeSlip);
 router.post('/accept-slip', protect, authorize('GUARD', 'ADMIN'), controller.acceptSlip);
+router.post('/checkout-slip', protect, authorize('GUARD', 'ADMIN'), controller.checkoutSlip);
 
 // Guard Station QR Session
 router.post('/start-session', protect, authorize('GUARD', 'ADMIN'), sessionController.startSession);

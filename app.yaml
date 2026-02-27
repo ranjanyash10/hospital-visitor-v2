@@ -1,0 +1,42 @@
+name: hospital-visitor-management
+services:
+  - name: backend
+    source_dir: backend
+    dockerfile_path: Dockerfile
+    http_port: 5000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /api
+    envs:
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        value: ${JWT_SECRET}
+      - key: SLIP_VALIDITY_HOURS
+        scope: RUN_TIME
+        value: "2"
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${DATABASE_URL}
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: production
+      - key: VISITOR_PORTAL_URL
+        scope: RUN_TIME
+        value: ${APP_URL}/visitor/register
+
+  - name: frontend
+    source_dir: frontend
+    dockerfile_path: Dockerfile
+    http_port: 80
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: ${APP_URL}/api
+      - key: VITE_SOCKET_URL
+        scope: BUILD_TIME
+        value: ${APP_URL}

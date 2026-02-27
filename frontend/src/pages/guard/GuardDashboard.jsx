@@ -239,6 +239,19 @@ const GuardDashboard = () => {
         fetchActiveVisitors();
     };
 
+    // --- 4f. Manual Checkout ---
+    const handleCheckout = async (slipId) => {
+        if (!window.confirm('Are you sure you want to check out this visitor?')) return;
+        try {
+            await api.post('/guard/checkout-slip', { id: slipId });
+            fetchActiveVisitors();
+            fetchStats();
+        } catch (err) {
+            console.error('Checkout failed:', err);
+            alert('Failed to check out visitor');
+        }
+    };
+
     // --- 4e. Manual Scan Verification (Guard scans Visitor) ---
     const [scannerActive, setScannerActive] = useState(false);
     const scannerRef = useRef(null);
@@ -594,6 +607,7 @@ const GuardDashboard = () => {
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Room</th>
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Count</th>
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Check-in</th>
+                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -620,6 +634,14 @@ const GuardDashboard = () => {
                                                                 <p className="text-[10px] font-bold text-slate-500 tabular-nums">
                                                                     {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : '—'}
                                                                 </p>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <button
+                                                                    onClick={() => handleCheckout(slip.id)}
+                                                                    className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100"
+                                                                >
+                                                                    Checkout
+                                                                </button>
                                                             </td>
                                                         </tr>
                                                     ))}

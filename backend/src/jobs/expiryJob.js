@@ -14,7 +14,7 @@ const startExpiryJob = () => {
                 },
                 {
                     where: {
-                        status: 'ACTIVE',
+                        status: { [Op.in]: ['ACTIVE', 'VISITING'] },
                         valid_until: { [Op.lt]: now }
                     }
                 }

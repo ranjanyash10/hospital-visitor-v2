@@ -262,3 +262,26 @@ exports.acceptSlip = async (req, res) => {
         res.status(500).json({ error: 'Accept failed' });
     }
 };
+
+exports.checkoutSlip = async (req, res) => {
+    try {
+        const { id } = req.body;
+        const slip = await VisitorSlip.findByPk(id);
+        if (!slip) return res.status(404).json({ error: 'Slip not found' });
+
+        slip.status = 'EXPIRED';
+        slip.expiryReason = 'CHECKOUT';
+        await slip.save();
+
+        await AuditLog.create({
+            action: 'SLIP_CHECKOUT',
+            details: `Manual checkout for slip ID: ${id}`,
+            user_id: req.user.id
+        });
+
+        res.json({ success: true, message: 'Visitor Checked Out Successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Checkout failed' });
+    }
+};

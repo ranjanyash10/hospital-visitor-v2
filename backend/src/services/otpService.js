@@ -126,8 +126,12 @@ const verifyOtp = async (mobileNumber, otp) => {
 };
 
 const sendRegistrationLink = async (mobileNumber, patientName, uhid, ward, bed) => {
+    // If running on DigitalOcean/Cloud, process.env.VISITOR_PORTAL_URL will be set to https://app.ondigitalocean.app/visitor/register
     const portalUrl = process.env.VISITOR_PORTAL_URL || 'http://localhost:5173/visitor/register';
-    const link = `${portalUrl}/${uhid}`;
+
+    // Ensure portalUrl doesn't have a trailing slash before appending UHID
+    const base = portalUrl.endsWith('/') ? portalUrl.slice(0, -1) : portalUrl;
+    const link = `${base}/${uhid}`;
     const message = `Sri Balaji Action Medical Institute: ${patientName} has been admitted (Ward: ${ward}, Bed: ${bed}). Please pre-register for your visitor pass here: ${link}`;
 
     return await sendSMS(mobileNumber, message);
