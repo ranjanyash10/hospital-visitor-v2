@@ -2,6 +2,7 @@ const { VisitorSlip, Admission, Patient, sequelize } = require('../models');
 const { addHours, isAfter, subHours } = require('date-fns');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
+const { getActiveVisitingWindow } = require('../config/visitingSchedule');
 
 const DAILY_LIMITS = {
     GENERAL: 2,
@@ -19,14 +20,29 @@ const checkLimits = async (patientId) => {
     }
 
     const wardType = admission.ward_type;
+    const wardCategory = admission.ward_category || 'WARD';
     const dailyLimit = DAILY_LIMITS[wardType] || 2;
     const maxConcurrent = admission.max_visitors || 1;
 
-    // Phase 1: Count currently ACTIVE visitors (sum of visitor_count)
+    // Phase 0: Check visiting time restrictions
+    const visitingWindow = getActiveVisitingWindow(wardCategory);
+    if (!visitingWindow.allowed) {
+        const next = visitingWindow.nextWindow;
+        return {
+            allowed: false,
+            message: `Visiting hours closed for ${visitingWindow.categoryLabel}. Next visiting window: ${next.session} (${next.from} – ${next.to})`,
+            remainingSlots: 0,
+            maxConcurrent,
+            visitingRestricted: true,
+            nextWindow: next
+        };
+    }
+
+    // Phase 1: Count currently VISITING visitors (sum of visitor_count)
     const activeSum = await VisitorSlip.sum('visitor_count', {
         where: {
             patient_id: patientId,
-            status: { [Op.in]: ['ACTIVE', 'VISITING'] }
+            status: 'VISITING'
         }
     }) || 0;
 
@@ -60,7 +76,14 @@ const checkLimits = async (patientId) => {
         };
     }
 
-    return { allowed: true, wardType, remainingSlots, maxConcurrent };
+    return {
+        allowed: true,
+        wardType,
+        remainingSlots,
+        maxConcurrent,
+        currentSession: visitingWindow.session,
+        sessionEnds: visitingWindow.to
+    };
 };
 
 const generateSlip = async (patientId, relativeId, mobileNumber, visitorCount = 1) => {
@@ -84,9 +107,7 @@ const generateSlip = async (patientId, relativeId, mobileNumber, visitorCount = 
         throw new Error('No active admission found for patient');
     }
 
-    // 3. Create Slip — use per-patient visit duration
-    const durationHours = admission.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
-    const validUntil = addHours(new Date(), durationHours);
+    // 3. Create Slip — valid_until is set when QR is first scanned, not at generation
     const slipToken = crypto.randomBytes(8).toString('hex').toUpperCase();
 
     const slip = await VisitorSlip.create({
@@ -96,10 +117,11 @@ const generateSlip = async (patientId, relativeId, mobileNumber, visitorCount = 
         relative_id: relativeId,
         mobile_number: mobileNumber,
         ward_type: wardType,
-        valid_until: validUntil,
+        valid_until: null,
         status: 'ACTIVE',
         qr_code_data: slipToken,
-        visitor_count: visitorCount
+        visitor_count: visitorCount,
+        ward_category: admission.ward_category || 'WARD'
     });
 
     return slip;

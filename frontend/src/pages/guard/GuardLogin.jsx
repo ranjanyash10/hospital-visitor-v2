@@ -97,12 +97,21 @@ const GuardLogin = () => {
                                     {loading ? <Loader2 size={20} className="animate-spin md:w-6 md:h-6" /> : 'Authorize Protocol'}
                                 </button>
                             </div>
+                            <div className="pt-2">
+                                <button
+                                    onClick={() => navigate('/walkin')}
+                                    type="button"
+                                    className="w-full py-3.5 bg-white border-2 border-slate-200 text-slate-500 rounded-xl font-bold text-[11px] md:text-xs uppercase tracking-[0.2em] hover:bg-slate-50 hover:border-brand-200 hover:text-brand-500 transition-all flex items-center justify-center gap-3 active:scale-95"
+                                >
+                                    Enter Walk-In Kiosk
+                                </button>
+                            </div>
                         </form>
                     </div>
 
                     <div className="bg-slate-50 px-6 md:px-10 py-4 md:py-5 border-t border-slate-100 text-center">
-                        <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                            Audit Control • Secured Session
+                        <span className="text-[9px] md:text-[10px] font-black text-slate-300 uppercase tracking-widest whitespace-nowrap">
+                            Institutional Terminal • V_2.3
                         </span>
                     </div>
                 </div>

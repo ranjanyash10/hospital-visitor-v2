@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
-const { Patient, Admission, AdmissionVisitor, VisitorSlip, KioskSession, GuardSession, AuditLog } = require('../models');
+const { Patient, Admission, AdmissionVisitor, VisitorSlip, KioskSession, GuardSession, AuditLog, Relative } = require('../models');
 const { sendOtpToRelative, verifyOtp } = require('../services/otpService');
 const { generateSlip, checkLimits } = require('../services/slipService');
 const { addMinutes } = require('date-fns');
+const { getActiveVisitingWindow } = require('../config/visitingSchedule');
 
 // 1. Validate QR token from guard station
 exports.validateQR = async (req, res) => {
@@ -93,12 +94,17 @@ exports.lookupPatients = async (req, res) => {
         const { checkLimits } = require('../services/slipService');
         const patients = await Promise.all(admissions.map(async (adm) => {
             let remainingSlots = adm.max_visitors || 1;
+            let visitingRestricted = false;
+            let nextWindow = null;
             try {
                 const limits = await checkLimits(adm.Patient.id);
                 remainingSlots = limits.remainingSlots || 0;
+                visitingRestricted = limits.visitingRestricted || false;
+                nextWindow = limits.nextWindow || null;
             } catch (e) {
                 remainingSlots = 0;
             }
+            const visitingWindow = getActiveVisitingWindow(adm.ward_category || 'WARD');
             return {
                 patient_id: adm.Patient.id,
                 name: adm.Patient.full_name,
@@ -106,9 +112,14 @@ exports.lookupPatients = async (req, res) => {
                 bed_number: adm.bed_number,
                 room_number: adm.room_number,
                 ward_type: adm.ward_type,
+                ward_category: adm.ward_category || 'WARD',
                 admission_id: adm.id,
                 max_visitors: adm.max_visitors || 1,
-                remaining_slots: remainingSlots
+                remaining_slots: remainingSlots,
+                visiting_allowed: visitingWindow.allowed,
+                visiting_session: visitingWindow.session,
+                visiting_next: visitingWindow.nextWindow,
+                category_label: visitingWindow.categoryLabel
             };
         }));
 
@@ -195,7 +206,24 @@ exports.verifyAndGenerate = async (req, res) => {
         }
 
         try {
-            const slipModel = await generateSlip(session.patient_id, null, mobile, visitor_count);
+            const createdSlips = [];
+            const { addHours } = require('date-fns');
+
+            // Generate separate slips (one for each person in visitor_count)
+            for (let i = 0; i < visitor_count; i++) {
+                const slipModel = await generateSlip(session.patient_id, null, mobile, 1);
+
+                // If this is at a guard station, activate it immediately
+                if (guard_station_id) {
+                    const durationHours = admission.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                    slipModel.status = 'VISITING';
+                    slipModel.scanned_count = 1;
+                    slipModel.valid_until = addHours(new Date(), durationHours);
+                    await slipModel.save();
+                }
+
+                createdSlips.push(slipModel);
+            }
 
             session.status = 'COMPLETED';
             await session.save();
@@ -211,7 +239,7 @@ exports.verifyAndGenerate = async (req, res) => {
                     room_number: admission.room_number,
                     bed_number: admission.bed_number,
                     masked_mobile: maskedMobile,
-                    slip_id: slipModel.id.split('-')[0],
+                    slip_id: createdSlips.map(s => s.id.split('-')[0]).join(', '),
                     ward_type: admission.ward_type,
                     visitor_count: visitor_count,
                     timestamp: new Date().toISOString()
@@ -220,22 +248,29 @@ exports.verifyAndGenerate = async (req, res) => {
 
             await AuditLog.create({
                 action: 'VISITOR_AUTHENTICATED',
-                details: `Visitor ${maskedMobile} (${visitor_count} person(s)) authenticated for patient ${admission.Patient.full_name}. Slip: ${slipModel.slip_token}`,
+                details: `Visitor ${maskedMobile} (${visitor_count} person(s)) authenticated for patient ${admission.Patient.full_name}. Slips: ${createdSlips.map(s => s.slip_token).join(', ')}`,
                 ip_address: req.ip
             });
 
-            const slip = {
-                id: slipModel.id.split('-')[0],
-                slip_token: slipModel.slip_token,
-                ward_type: slipModel.ward_type,
-                valid_until: slipModel.valid_until,
+            const formattedSlips = createdSlips.map(s => ({
+                id: s.id.split('-')[0],
+                slip_token: s.slip_token,
+                ward_type: s.ward_type,
+                valid_until: s.valid_until,
                 patient_name: admission.Patient.full_name,
                 room_number: admission.room_number,
                 bed_number: admission.bed_number,
-                visitor_count: visitor_count
-            };
+                visitor_count: 1
+            }));
 
-            res.json({ success: true, slip });
+            res.json({
+                success: true,
+                slips: formattedSlips,
+                slip: {
+                    ...formattedSlips[0],
+                    visitor_count: visitor_count // compatibility for legacy/single slip displays
+                }
+            });
         } catch (err) {
             return res.status(400).json({ error: err.message });
         }
@@ -264,6 +299,34 @@ exports.getFormInfo = async (req, res) => {
 
         const admission = patient.Admissions[0];
 
+        // Calculate actual remaining slots based on limits
+        const { checkLimits } = require('../services/slipService');
+        const { subHours } = require('date-fns');
+        const { Op } = require('sequelize');
+
+        let remaining_slots = 0;
+        try {
+            const limits = await checkLimits(patient.id);
+            if (limits.allowed) {
+                const DAILY_LIMITS = { GENERAL: 2, PRIVATE: 3 };
+                const dailyLimit = DAILY_LIMITS[admission.ward_type] || 2;
+                const oneDayAgo = subHours(new Date(), 24);
+                
+                const dailyCount = await VisitorSlip.count({
+                    where: {
+                        patient_id: patient.id,
+                        createdAt: { [Op.gt]: oneDayAgo },
+                        status: { [Op.ne]: 'REVOKED' }
+                    }
+                });
+
+                const remainingDaily = Math.max(0, dailyLimit - dailyCount);
+                remaining_slots = Math.min(limits.remainingSlots, remainingDaily);
+            }
+        } catch (e) {
+            remaining_slots = 0;
+        }
+
         res.json({
             success: true,
             patient: {
@@ -272,7 +335,8 @@ exports.getFormInfo = async (req, res) => {
                 room_number: admission.room_number,
                 bed_number: admission.bed_number,
                 ward_type: admission.ward_type,
-                max_visitors: admission.max_visitors
+                max_visitors: admission.max_visitors,
+                remaining_slots: remaining_slots
             }
         });
     } catch (error) {
@@ -284,15 +348,29 @@ exports.getFormInfo = async (req, res) => {
 // 6. V2: Pre-registration form submission
 exports.preRegister = async (req, res) => {
     try {
-        const {
-            uhid,
-            visitor_name,
-            visitor_age,
-            visitor_gender,
-            id_type,
-            id_number,
-            mobile
-        } = req.body;
+        const { uhid, mobile } = req.body;
+
+        // Support both single visitor fields and multiple visitors array
+        let visitors = req.body.visitors;
+        if (!visitors || !Array.isArray(visitors)) {
+            visitors = [{
+                visitor_name: req.body.visitor_name,
+                visitor_age: req.body.visitor_age,
+                visitor_gender: req.body.visitor_gender || 'Male',
+                id_type: req.body.id_type,
+                id_number: req.body.id_number
+            }];
+        }
+
+        // Validate that we have at least one visitor and that they all have names
+        if (visitors.length === 0) {
+            return res.status(400).json({ error: 'At least one visitor must be specified' });
+        }
+        for (const v of visitors) {
+            if (!v.visitor_name || !v.visitor_name.trim()) {
+                return res.status(400).json({ error: 'Visitor name is required' });
+            }
+        }
 
         const patient = await Patient.findOne({
             where: { uhid },
@@ -309,55 +387,99 @@ exports.preRegister = async (req, res) => {
 
         const admission = patient.Admissions[0];
 
-        // Check limits
+        // 1. Resolve Mobile Number (Fallback to Primary Relative if not provided)
+        let visitorMobile = mobile;
+        if (!visitorMobile) {
+            const primaryRelative = await Relative.findOne({
+                where: { patient_id: patient.id, is_primary: true }
+            });
+            visitorMobile = primaryRelative?.mobile_number || '0000000000';
+        }
+
+        // 2. Strict Limit Check
         const { checkLimits } = require('../services/slipService');
+        const { subHours } = require('date-fns');
+        const { Op } = require('sequelize');
+
         const limitCheck = await checkLimits(patient.id);
         if (!limitCheck.allowed) {
             return res.status(400).json({ error: limitCheck.message });
         }
 
-        // Generate slip with V2 details
+        // Calculate actual slots left under daily limit
+        const DAILY_LIMITS = { GENERAL: 2, PRIVATE: 3 };
+        const dailyLimit = DAILY_LIMITS[admission.ward_type] || 2;
+        const oneDayAgo = subHours(new Date(), 24);
+        
+        const dailyCount = await VisitorSlip.count({
+            where: {
+                patient_id: patient.id,
+                createdAt: { [Op.gt]: oneDayAgo },
+                status: { [Op.ne]: 'REVOKED' }
+            }
+        });
+
+        const remainingDaily = Math.max(0, dailyLimit - dailyCount);
+        const totalRemainingSlots = Math.min(limitCheck.remainingSlots, remainingDaily);
+
+        if (visitors.length > totalRemainingSlots) {
+            return res.status(400).json({
+                error: `Only ${totalRemainingSlots} visitor slot(s) remaining for today. Cannot register ${visitors.length} person(s).`
+            });
+        }
+
         const crypto = require('crypto');
         const { addHours } = require('date-fns');
-
         const durationHours = admission.visit_duration_hours || 1;
         const validUntil = addHours(new Date(), durationHours);
-        const slipToken = crypto.randomBytes(8).toString('hex').toUpperCase();
 
-        const slipModel = await VisitorSlip.create({
-            slip_token: slipToken,
-            patient_id: patient.id,
-            admission_id: admission.id,
-            mobile_number: mobile,
-            ward_type: admission.ward_type,
-            valid_until: validUntil,
-            status: 'ACTIVE',
-            qr_code_data: slipToken,
-            visitor_count: 1,
-            visitor_name,
-            visitor_age,
-            visitor_gender,
-            id_type,
-            id_number,
-            scanned_count: 0
-        });
+        const createdSlips = [];
+        
+        for (const v of visitors) {
+            const slipToken = crypto.randomBytes(8).toString('hex').toUpperCase();
+            
+            const slipModel = await VisitorSlip.create({
+                slip_token: slipToken,
+                patient_id: patient.id,
+                admission_id: admission.id,
+                mobile_number: visitorMobile,
+                ward_type: admission.ward_type,
+                valid_until: validUntil,
+                status: 'ACTIVE',
+                qr_code_data: slipToken,
+                visitor_count: 1, // Separate QR for each person
+                visitor_name: v.visitor_name.trim(),
+                visitor_age: v.visitor_age || null,
+                visitor_gender: v.visitor_gender || 'Male',
+                id_type: v.id_type || null,
+                id_number: v.id_number || null,
+                scanned_count: 0,
+                ward_category: admission.ward_category || 'WARD'
+            });
+
+            createdSlips.push(slipModel);
+        }
 
         await AuditLog.create({
             action: 'VISITOR_PRE_REGISTER',
-            details: `Visitor ${visitor_name} pre-registered for patient ${patient.full_name} (UHID: ${uhid})`,
+            details: `Pre-registered ${createdSlips.length} visitor(s) for patient ${patient.full_name} (UHID: ${uhid}). Slips: ${createdSlips.map(s => s.slip_token).join(', ')}`,
             ip_address: req.ip
         });
 
+        const formattedSlips = createdSlips.map(s => ({
+            id: s.id.split('-')[0],
+            slip_token: s.slip_token,
+            valid_until: s.valid_until,
+            patient_name: patient.full_name,
+            room_number: admission.room_number,
+            bed_number: admission.bed_number,
+            visitor_name: s.visitor_name
+        }));
+
         res.json({
             success: true,
-            slip: {
-                id: slipModel.id.split('-')[0],
-                slip_token: slipModel.slip_token,
-                valid_until: slipModel.valid_until,
-                patient_name: patient.full_name,
-                room_number: admission.room_number,
-                bed_number: admission.bed_number
-            }
+            slips: formattedSlips,
+            slip: formattedSlips[0] // Fallback compatibility
         });
 
     } catch (error) {

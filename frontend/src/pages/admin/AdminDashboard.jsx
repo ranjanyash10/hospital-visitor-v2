@@ -42,8 +42,8 @@ const AdminDashboard = () => {
     const [showAdmitForm, setShowAdmitForm] = useState(false);
     const [newAdmission, setNewAdmission] = useState({
         uhid: '', full_name: '', mobile_number: '', relative_name: '',
-        ward_type: 'GENERAL', room_number: '', bed_number: '',
-        max_visitors: 2, visit_duration_hours: 1
+        ward_type: 'GENERAL', ward_category: 'WARD', room_number: '', bed_number: '',
+        max_visitors: 1, visit_duration_hours: 1
     });
 
     const fetchData = async () => {
@@ -198,7 +198,7 @@ const AdminDashboard = () => {
             setShowAdmitForm(false);
             setNewAdmission({
                 uhid: '', full_name: '', mobile_number: '', relative_name: '',
-                ward_type: 'GENERAL', room_number: '', bed_number: '',
+                ward_type: 'GENERAL', ward_category: 'WARD', room_number: '', bed_number: '',
                 max_visitors: 2, visit_duration_hours: 1
             });
             fetchData();
@@ -276,9 +276,21 @@ const AdminDashboard = () => {
                         </div>
                         <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className="h-9 md:h-10 px-2 md:px-4 bg-white border border-slate-200 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-600 focus:border-brand-500 outline-none transition-all shadow-sm flex-1 sm:flex-none" />
                         <select name="ward_type" value={filters.ward_type} onChange={handleFilterChange} className="h-9 md:h-10 px-2 md:px-4 bg-white border border-slate-200 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-600 focus:border-brand-500 outline-none transition-all shadow-sm flex-1 sm:flex-none">
-                            <option value="">Wards</option>
-                            <option value="GENERAL">General</option>
-                            <option value="PRIVATE">Private</option>
+                            <option value="">All Areas</option>
+                            <option value="GENERAL">General Ward</option>
+                            <option value="PRIVATE">Private Suite</option>
+                            <optgroup label="ICU & Critical Care">
+                                <option value="MEDICAL_ICU_1_11">Medical ICU 1-11</option>
+                                <option value="MEDICAL_ICU_12_23">Medical ICU 12-23</option>
+                                <option value="NEURO_ICU">Neuro ICU</option>
+                                <option value="SURGICAL_ICU">Surgical ICU</option>
+                                <option value="ICU_2">ICU-2</option>
+                                <option value="HEART_COMMAND">Heart Command</option>
+                                <option value="ICU_3">ICU-3</option>
+                                <option value="NEPHRO_ICU">Nephro ICU</option>
+                                <option value="NICU">NICU</option>
+                            </optgroup>
+                            <option value="WARD">Ward / Other</option>
                         </select>
                     </div>
                 </div>
@@ -289,7 +301,9 @@ const AdminDashboard = () => {
                             <tr className="bg-slate-50 border-b border-slate-100 text-left">
                                 <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Access Token</th>
                                 <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Visitor</th>
-                                <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Patient & Location</th>
+                                <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Patient</th>
+                                <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Bed / Room</th>
+                                <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Zone / Ward</th>
                                 <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Status</th>
                                 <th className="px-6 md:px-8 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
                             </tr>
@@ -308,14 +322,23 @@ const AdminDashboard = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 md:px-8 py-4 md:py-6 whitespace-nowrap">
-                                        <div className="font-medium text-slate-700 text-[13px] md:text-[15px] mb-1 uppercase tracking-tighter">{slip.Patient?.full_name}</div>
-                                        <div className="flex gap-2">
-                                            <span className="px-2 py-0.5 bg-brand-50 text-brand-500 text-[9px] md:text-[11px] font-bold rounded uppercase border border-brand-100">{slip.ward_type}</span>
-                                            {slip.Patient?.Admissions?.[0] && (
-                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] md:text-[11px] font-bold rounded uppercase border border-slate-200">
-                                                    R_{slip.Patient.Admissions[0].room_number}
-                                                </span>
-                                            )}
+                                        <div className="font-bold text-slate-900 text-[14px] md:text-[16px] uppercase tracking-tight">{slip.Patient?.full_name}</div>
+                                        <div className="text-[10px] font-mono text-slate-400 mt-0.5">{slip.Patient?.uhid}</div>
+                                    </td>
+                                    <td className="px-6 md:px-8 py-4 md:py-6 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <div className="font-black text-brand-600 text-[15px] md:text-[18px] leading-none">B_{slip.Patient?.Admissions?.[0]?.bed_number || 'N/A'}</div>
+                                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">RM_{slip.Patient?.Admissions?.[0]?.room_number || '---'}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 md:px-8 py-4 md:py-6 whitespace-nowrap">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[13px] md:text-[15px] font-bold text-slate-800 uppercase tracking-tight">
+                                                {slip.ward_category?.replace(/_/g, ' ') || slip.ward_type}
+                                            </span>
+                                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded w-fit uppercase border border-slate-200 tracking-tighter">
+                                                {slip.ward_type} Unit
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 md:px-8 py-4 md:py-6 whitespace-nowrap">
@@ -778,6 +801,16 @@ const AdminDashboard = () => {
                                     <td className="px-4 md:px-6 py-4 md:py-5 whitespace-nowrap">
                                         <span className="px-2 py-0.5 bg-brand-50 text-brand-500 text-[10px] md:text-[11px] font-bold rounded uppercase border border-brand-100">R-{p.room_number}</span>
                                         <span className="ml-1.5 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] md:text-[11px] font-bold rounded uppercase border border-slate-200">B-{p.bed_number}</span>
+                                        {p.ward_category && p.ward_category !== 'WARD' && p.ward_category !== 'GENERAL' && p.ward_category !== 'PRIVATE' && (
+                                            <span className="ml-1.5 px-2 py-0.5 bg-red-50 text-red-600 text-[10px] md:text-[11px] font-bold rounded uppercase border border-red-100">{p.ward_category.replace(/_/g, ' ')}</span>
+                                        )}
+                                        {p.visiting_allowed !== undefined && (
+                                            <div className="mt-1">
+                                                <span className={`px-2 py-0.5 text-[8px] md:text-[9px] font-bold rounded uppercase border ${p.visiting_allowed ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                    {p.visiting_allowed ? `✓ ${p.visiting_session} Window` : `✗ Closed${p.visiting_next ? ` • Next: ${p.visiting_next.from}` : ''}`}
+                                                </span>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-4 md:px-6 py-4 md:py-5 whitespace-nowrap">
                                         {editContact.admission_id === p.admission_id ? (
@@ -1008,11 +1041,28 @@ const AdminDashboard = () => {
                                             <input className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold" value={newAdmission.relative_name} onChange={e => setNewAdmission({ ...newAdmission, relative_name: e.target.value })} />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ward Type</label>
-                                            <select className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold appearance-none" value={newAdmission.ward_type} onChange={e => setNewAdmission({ ...newAdmission, ward_type: e.target.value })}>
-                                                <option value="GENERAL">General Ward</option>
-                                                <option value="PRIVATE">Private Suite</option>
-                                                <option value="ICU">ICU / Critical Care</option>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ward Category (ICU/Area)</label>
+                                            <select className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold appearance-none" value={newAdmission.ward_category} onChange={e => {
+                                                const cat = e.target.value;
+                                                const isICU = !['GENERAL', 'PRIVATE', 'WARD'].includes(cat);
+                                                setNewAdmission({ ...newAdmission, ward_category: cat, ward_type: isICU ? 'GENERAL' : (cat === 'PRIVATE' ? 'PRIVATE' : 'GENERAL') });
+                                            }}>
+                                                <optgroup label="Standard Wards">
+                                                    <option value="GENERAL">General Ward</option>
+                                                    <option value="PRIVATE">Private Suite</option>
+                                                    <option value="WARD">Ward / Other Area</option>
+                                                </optgroup>
+                                                <optgroup label="ICU & Critical Care">
+                                                    <option value="MEDICAL_ICU_1_11">Medical ICU Bed 1–11</option>
+                                                    <option value="MEDICAL_ICU_12_23">Medical ICU Bed 12–23</option>
+                                                    <option value="NEURO_ICU">Neuro ICU</option>
+                                                    <option value="SURGICAL_ICU">Surgical ICU</option>
+                                                    <option value="ICU_2">ICU-2</option>
+                                                    <option value="HEART_COMMAND">Heart Command</option>
+                                                    <option value="ICU_3">ICU-3</option>
+                                                    <option value="NEPHRO_ICU">Nephro ICU</option>
+                                                    <option value="NICU">NICU</option>
+                                                </optgroup>
                                             </select>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">

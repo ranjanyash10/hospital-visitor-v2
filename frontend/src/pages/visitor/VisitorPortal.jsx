@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { Smartphone, Search, User, Users, Building2, Activity, ChevronRight, AlertCircle, CheckCircle2, Loader2, Shield, Send, ArrowLeft } from 'lucide-react';
+import { Smartphone, Search, User, Users, Building2, Activity, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, Loader2, Shield, Send, ArrowLeft, Clock } from 'lucide-react';
 import logo from '../../assets/logo.png';
 
 const VisitorPortal = () => {
@@ -21,6 +21,8 @@ const VisitorPortal = () => {
     const [admissionId, setAdmissionId] = useState(null);
     const [otp, setOtp] = useState(['', '', '', '']);
     const [slip, setSlip] = useState(null);
+    const [slips, setSlips] = useState([]);
+    const [currentPassIndex, setCurrentPassIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(0);
     const [visitorCount, setVisitorCount] = useState(1);
     const [maxSlots, setMaxSlots] = useState(1);
@@ -160,6 +162,8 @@ const VisitorPortal = () => {
                 visitor_count: count
             });
             setSlip(res.data.slip);
+            setSlips(res.data.slips || [res.data.slip]);
+            setCurrentPassIndex(0);
             setStep('SLIP');
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to generate slip');
@@ -168,17 +172,23 @@ const VisitorPortal = () => {
         }
     };
 
-    // Slip validity countdown
+    // Slip validity countdown — only starts after QR is scanned (valid_until becomes non-null)
     useEffect(() => {
-        if (step !== 'SLIP' || !slip) return;
-        const endTime = new Date(slip.valid_until).getTime();
+        if (step !== 'SLIP' || !slips || slips.length === 0) return;
+        const currentSlip = slips[currentPassIndex];
+        if (!currentSlip || !currentSlip.valid_until) {
+            // Timer not yet activated (QR not scanned yet)
+            setTimeLeft(-1);
+            return;
+        }
+        const endTime = new Date(currentSlip.valid_until).getTime();
         const timer = setInterval(() => {
             const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
             setTimeLeft(remaining);
             if (remaining <= 0) clearInterval(timer);
         }, 1000);
         return () => clearInterval(timer);
-    }, [step, slip]);
+    }, [step, slips, currentPassIndex]);
 
     const formatTime = (s) => {
         const m = Math.floor(s / 60);
@@ -315,6 +325,22 @@ const VisitorPortal = () => {
                                                     <span>•</span>
                                                     <span className="flex items-center gap-1"><Activity size={10} /> Bed {p.bed_number}</span>
                                                 </p>
+                                                {p.category_label && (
+                                                    <p className="text-[9px] font-bold text-indigo-500 mt-0.5 uppercase tracking-wider">{p.category_label}</p>
+                                                )}
+                                                {p.visiting_allowed !== undefined && (
+                                                    <div className="mt-1">
+                                                        {p.visiting_allowed ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[9px] font-bold rounded-full border border-emerald-100">
+                                                                <CheckCircle2 size={10} /> {p.visiting_session} Visit Open
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 text-[9px] font-bold rounded-full border border-amber-100">
+                                                                <Clock size={10} /> Closed • Next: {p.visiting_next?.session} {p.visiting_next?.from}–{p.visiting_next?.to}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         {selectedPatient?.admission_id === p.admission_id && (
@@ -324,9 +350,21 @@ const VisitorPortal = () => {
                                 ))}
                             </div>
 
+                            {selectedPatient && !selectedPatient.visiting_allowed && (
+                                <div className="mt-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                                    <Clock size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-xs font-bold text-amber-800">Visiting Hours Closed</p>
+                                        <p className="text-[10px] text-amber-600 mt-0.5 font-medium">
+                                            Next visiting window: {selectedPatient.visiting_next?.session} ({selectedPatient.visiting_next?.from} – {selectedPatient.visiting_next?.to})
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <button
                                 onClick={handleSendOtp}
-                                disabled={loading || !selectedPatient}
+                                disabled={loading || !selectedPatient || (selectedPatient && !selectedPatient.visiting_allowed)}
                                 className="w-full h-14 mt-5 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
                             >
                                 {loading ? <Loader2 className="animate-spin" size={20} /> : <><Send size={16} /> Send OTP</>}
@@ -377,112 +415,161 @@ const VisitorPortal = () => {
                             </button>
                         </div>
                     </div>
-                )}
+                )
+                }
 
                 {/* STEP: VISITOR_COUNT */}
-                {step === 'VISITOR_COUNT' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 p-6">
-                            <div className="text-center mb-6">
-                                <div className="w-14 h-14 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                    <Users size={28} className="text-brand-500" />
-                                </div>
-                                <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">How many visitors?</h2>
-                                <p className="text-slate-400 text-xs mt-1.5 font-medium">
-                                    Select the number of people entering together (max {maxSlots})
-                                </p>
-                            </div>
-
-                            <div className="flex flex-wrap justify-center gap-3 mb-6">
-                                {Array.from({ length: maxSlots }, (_, i) => i + 1).map(n => (
-                                    <button
-                                        key={n}
-                                        onClick={() => setVisitorCount(n)}
-                                        className={`w-14 h-14 rounded-2xl text-lg font-bold transition-all border-2 ${visitorCount === n
-                                            ? 'bg-brand-500 text-white border-indigo-600 shadow-lg shadow-indigo-600/30 scale-110'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                                            }`}
-                                    >
-                                        {n}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {visitorCount > 1 && (
-                                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center mb-4">
-                                    <p className="text-xs font-bold text-indigo-700">
-                                        You + {visitorCount - 1} guest{visitorCount > 2 ? 's' : ''} entering
+                {
+                    step === 'VISITOR_COUNT' && (
+                        <div className="space-y-4 animate-in fade-in">
+                            <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 p-6">
+                                <div className="text-center mb-6">
+                                    <div className="w-14 h-14 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                        <Users size={28} className="text-brand-500" />
+                                    </div>
+                                    <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">How many visitors?</h2>
+                                    <p className="text-slate-400 text-xs mt-1.5 font-medium">
+                                        Select the number of people entering together (max {maxSlots})
                                     </p>
                                 </div>
-                            )}
 
-                            <button
-                                onClick={() => generateSlipWithCount(visitorCount)}
-                                disabled={loading}
-                                className="w-full h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
-                            >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <><CheckCircle2 size={16} /> Continue</>}
-                            </button>
+                                <div className="flex flex-wrap justify-center gap-3 mb-6">
+                                    {Array.from({ length: maxSlots }, (_, i) => i + 1).map(n => (
+                                        <button
+                                            key={n}
+                                            onClick={() => setVisitorCount(n)}
+                                            className={`w-14 h-14 rounded-2xl text-lg font-bold transition-all border-2 ${visitorCount === n
+                                                ? 'bg-brand-500 text-white border-indigo-600 shadow-lg shadow-indigo-600/30 scale-110'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                                }`}
+                                        >
+                                            {n}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {visitorCount > 1 && (
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center mb-4">
+                                        <p className="text-xs font-bold text-indigo-700">
+                                            You + {visitorCount - 1} guest{visitorCount > 2 ? 's' : ''} entering
+                                        </p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => generateSlipWithCount(visitorCount)}
+                                    disabled={loading}
+                                    className="w-full h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
+                                >
+                                    {loading ? <Loader2 className="animate-spin" size={20} /> : <><CheckCircle2 size={16} /> Continue</>}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* STEP: SLIP */}
-                {step === 'SLIP' && slip && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 p-6 text-center">
-                            <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
-                                <CheckCircle2 size={32} className="text-emerald-600" />
-                            </div>
-                            <h2 className="text-xl font-extrabold text-slate-800 mb-1">Slip Generated!</h2>
-                            <p className="text-slate-400 text-xs font-medium mb-6">Show this to the guard at entry</p>
+                {
+                    step === 'SLIP' && slips && slips.length > 0 && (
+                        <div className="space-y-4 animate-in fade-in">
+                            <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 p-6 text-center relative border border-slate-100 overflow-hidden">
+                                
+                                {slips.length > 1 && (
+                                    <div className="absolute top-4 right-6 bg-slate-900/10 backdrop-blur-md px-2.5 py-1 rounded-full text-[9px] font-extrabold text-slate-700 font-mono">
+                                        PASS {currentPassIndex + 1} OF {slips.length}
+                                    </div>
+                                )}
 
-                            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white mb-6">
-                                <div className="bg-white rounded-xl p-3 md:p-4 mb-4 inline-block max-w-full overflow-hidden">
-                                    <div className="text-xl sm:text-2xl md:text-4xl font-black text-slate-900 tracking-tight font-mono break-all px-2">
-                                        {slip.slip_token}
+                                <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle2 size={28} className="text-emerald-600" />
+                                </div>
+                                <h2 className="text-xl font-extrabold text-slate-800 mb-1">Visitor Pass Generated!</h2>
+                                <p className="text-slate-400 text-xs font-medium mb-6">Show this QR to the guard at entry</p>
+
+                                {/* Pass Slider Container */}
+                                <div className="relative flex items-center justify-center mb-6">
+                                    {slips.length > 1 && (
+                                        <button 
+                                            onClick={() => setCurrentPassIndex(prev => (prev - 1 + slips.length) % slips.length)}
+                                            className="absolute left-0 p-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-full hover:bg-slate-100 transition-all hover:scale-105 active:scale-95 shadow-sm z-10"
+                                        >
+                                            <ChevronLeft className="w-4.5 h-4.5 stroke-[2.5]" />
+                                        </button>
+                                    )}
+
+                                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white w-full max-w-[280px]">
+                                        <div className="bg-white rounded-xl p-3 mb-4 inline-block max-w-full overflow-hidden">
+                                            <QRCode value={slips[currentPassIndex].slip_token} size={150} level="H" className="mx-auto" />
+                                        </div>
+                                        <div className="text-sm font-black font-mono tracking-wider bg-white/10 px-3 py-1 rounded-full inline-block">
+                                            {slips[currentPassIndex].slip_token}
+                                        </div>
+                                        <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-2">Pass ID: {slips[currentPassIndex].id}</div>
+                                    </div>
+
+                                    {slips.length > 1 && (
+                                        <button 
+                                            onClick={() => setCurrentPassIndex(prev => (prev + 1) % slips.length)}
+                                            className="absolute right-0 p-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-full hover:bg-slate-100 transition-all hover:scale-105 active:scale-95 shadow-sm z-10"
+                                        >
+                                            <ChevronRight className="w-4.5 h-4.5 stroke-[2.5]" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Slider Indicator Dots */}
+                                {slips.length > 1 && (
+                                    <div className="flex justify-center gap-1.5 mb-5">
+                                        {slips.map((_, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setCurrentPassIndex(idx)}
+                                                className={`h-2 rounded-full transition-all duration-300 ${
+                                                    idx === currentPassIndex ? 'w-6 bg-brand-500' : 'w-2 bg-slate-200'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    <div className="bg-slate-50 rounded-2xl p-3 text-left border border-slate-100">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Patient</p>
+                                        <p className="text-xs font-bold text-slate-800 truncate">{slips[currentPassIndex].patient_name}</p>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-2xl p-3 text-left border border-slate-100">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Ward Type</p>
+                                        <p className="text-xs font-bold text-slate-800">{slips[currentPassIndex].ward_type}</p>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-2xl p-3 text-left border border-slate-100">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Room</p>
+                                        <p className="text-xs font-bold text-slate-800">{slips[currentPassIndex].room_number}</p>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-2xl p-3 text-left border border-slate-100">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Bed</p>
+                                        <p className="text-xs font-bold text-slate-800">{slips[currentPassIndex].bed_number}</p>
                                     </div>
                                 </div>
-                                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest">Slip ID: {slip.id}</div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-3 mb-6">
-                                <div className="bg-slate-50 rounded-2xl p-3 text-left">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Patient</p>
-                                    <p className="text-sm font-bold text-slate-800">{slip.patient_name}</p>
-                                </div>
-                                <div className="bg-slate-50 rounded-2xl p-3 text-left">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ward Type</p>
-                                    <p className="text-sm font-bold text-slate-800">{slip.ward_type}</p>
-                                </div>
-                                <div className="bg-slate-50 rounded-2xl p-3 text-left">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Room</p>
-                                    <p className="text-sm font-bold text-slate-800">{slip.room_number}</p>
-                                </div>
-                                <div className="bg-slate-50 rounded-2xl p-3 text-left">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bed</p>
-                                    <p className="text-sm font-bold text-slate-800">{slip.bed_number}</p>
-                                </div>
-                            </div>
+                                {slips.length > 1 && (
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center mb-4">
+                                        <p className="text-xs font-semibold text-indigo-700">
+                                            👥 {slips.length} separate passes generated. Swipe to see other passes.
+                                        </p>
+                                    </div>
+                                )}
 
-                            {slip.visitor_count > 1 && (
-                                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-center mb-4">
-                                    <p className="text-xs font-bold text-indigo-700">
-                                        👥 {slip.visitor_count} visitors entering together
+                                <div className={`${timeLeft === -1 ? 'bg-blue-50 border-blue-100' : 'bg-amber-50 border-amber-100'} border rounded-2xl p-3 text-center`}>
+                                    <p className={`text-[10px] font-bold ${timeLeft === -1 ? 'text-blue-700' : 'text-amber-700'} uppercase tracking-wider`}>
+                                        {timeLeft === -1 ? '🔒 Timer starts when QR is scanned at gate' : `⏱ Valid for ${formatTime(timeLeft)}`}
                                     </p>
                                 </div>
-                            )}
-
-                            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3 text-center">
-                                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
-                                    ⏱ Valid for {formatTime(timeLeft)}
-                                </p>
                             </div>
                         </div>
-                    </div>
-                )}
-            </main>
-        </div>
+                    )
+                }
+            </main >
+        </div >
     );
 };
 

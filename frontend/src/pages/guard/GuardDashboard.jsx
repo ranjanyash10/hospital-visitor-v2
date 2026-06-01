@@ -160,7 +160,7 @@ const GuardDashboard = () => {
         try {
             const res = await api.get('/guard/slips?limit=50');
             const all = res.data.slips || res.data || [];
-            const active = all.filter(s => s.status === 'ACTIVE' || s.status === 'VISITING');
+            const active = all.filter(s => s.status === 'VISITING');
             setActiveVisitors(active);
         } catch (err) {
             console.error('Failed to fetch active visitors:', err);
@@ -188,7 +188,7 @@ const GuardDashboard = () => {
                     // If we see a new slip ID that is ACTIVE/VISITING
                     if (lastSeenSlipIdRef.current !== null &&
                         topSlip.id > lastSeenSlipIdRef.current &&
-                        (topSlip.status === 'ACTIVE' || topSlip.status === 'VISITING')) {
+                        topSlip.status === 'VISITING') {
 
                         console.log('[Polling] New authorized slip detected:', topSlip.id);
 
@@ -240,10 +240,13 @@ const GuardDashboard = () => {
     };
 
     // --- 4f. Manual Checkout ---
-    const handleCheckout = async (slipId) => {
-        if (!window.confirm('Are you sure you want to check out this visitor?')) return;
+    const handleCheckout = async (slipId, forced = false) => {
+        const msg = forced 
+            ? 'SECURITY ACTION: Forcefully exit this visitor and log as security event?' 
+            : 'Are you sure you want to check out this visitor?';
+        if (!window.confirm(msg)) return;
         try {
-            await api.post('/guard/checkout-slip', { id: slipId });
+            await api.post('/guard/checkout-slip', { id: slipId, forced });
             fetchActiveVisitors();
             fetchStats();
         } catch (err) {
@@ -261,6 +264,8 @@ const GuardDashboard = () => {
             const res = await api.post('/guard/verify-slip', { slipToken: token });
             if (res.data.valid) {
                 const s = res.data.slip;
+                const status = res.data.status; // GRANTED or EXIT_GRANTED
+
                 setSuccessData({
                     slip_id: s.id.split('-')[0],
                     patient_name: s.patient_name || '—',
@@ -273,13 +278,15 @@ const GuardDashboard = () => {
                     id_number: s.id_number,
                     scanned_count: s.scanned_count,
                     max_visitors: s.max_visitors,
-                    timestamp: new Date()
+                    permit_type: s.permit_type || 'REGULAR',
+                    timestamp: new Date(),
+                    scan_status: status 
                 });
                 setMode('SUCCESS');
                 setSuccessCountdown(30);
                 fetchStats();
             } else {
-                alert(`Invalid Slip: ${res.data.message}`);
+                alert(`DENIED: ${res.data.message}`);
             }
         } catch (err) {
             console.error('Verify error:', err);
@@ -342,20 +349,28 @@ const GuardDashboard = () => {
     };
 
     // --- RENDER: SUCCESS MODE ---
+    // --- RENDER: SUCCESS MODE ---
     if (mode === 'SUCCESS' && successData) {
+        const isExit = successData.scan_status === 'EXIT_GRANTED';
+        const theme = isExit 
+            ? { bg: 'from-blue-50 via-indigo-50 to-blue-100', accent: 'blue', text: 'blue', iconBg: 'bg-blue-600', shadow: 'shadow-blue-600/30' }
+            : { bg: 'from-emerald-50 via-green-50 to-emerald-100', accent: 'emerald', text: 'emerald', iconBg: 'bg-emerald-600', shadow: 'shadow-emerald-600/30' };
+
         return (
-            <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex flex-col transition-colors duration-700">
+            <div className={`min-h-screen bg-gradient-to-br ${theme.bg} flex flex-col transition-colors duration-700`}>
                 {/* Success Header */}
                 <header className="px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-emerald-600/30">
+                        <div className={`w-10 h-10 ${theme.iconBg} rounded-xl flex items-center justify-center text-white shadow-xl ${theme.shadow}`}>
                             <ShieldCheck size={22} />
                         </div>
-                        <span className="text-sm font-black text-emerald-800 uppercase tracking-wider">Access Granted</span>
+                        <span className={`text-sm font-black text-${theme.accent}-800 uppercase tracking-wider`}>
+                            {isExit ? 'Checkout Complete' : 'Access Granted'}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 rounded-full bg-white/70 backdrop-blur border border-emerald-200">
-                            <span className="text-lg font-black text-emerald-700 tabular-nums">{successCountdown}s</span>
+                        <div className={`px-4 py-2 rounded-full bg-white/70 backdrop-blur border border-${theme.accent}-200`}>
+                            <span className={`text-lg font-black text-${theme.accent}-700 tabular-nums`}>{successCountdown}s</span>
                         </div>
                     </div>
                 </header>
@@ -364,70 +379,70 @@ const GuardDashboard = () => {
                 <main className="flex-1 flex items-center justify-center px-6">
                     <div className="w-full max-w-2xl text-center">
                         {/* Giant Checkmark */}
-                        <div className="w-32 h-32 md:w-40 md:h-40 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-emerald-500/40 animate-bounce-once">
+                        <div className={`w-32 h-32 md:w-40 md:h-40 ${isExit ? 'bg-blue-500' : 'bg-emerald-500'} rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-${theme.accent}-500/40 animate-bounce-once`}>
                             <CheckCircle2 size={80} className="text-white" strokeWidth={2.5} />
                         </div>
 
-                        <h1 className="text-4xl md:text-5xl font-black text-emerald-800 mb-2 tracking-tight">
-                            VISITOR AUTHORIZED
+                        <h1 className={`text-4xl md:text-5xl font-black text-${theme.accent}-800 mb-2 tracking-tight`}>
+                            {isExit ? 'CHECKOUT CONFIRMED' : 'VISITOR AUTHORIZED'}
                         </h1>
-                        <p className="text-emerald-600 font-bold text-sm uppercase tracking-[0.3em] mb-4">
-                            Entry Clearance Confirmed
+                        <p className={`text-${theme.accent}-600 font-bold text-sm uppercase tracking-[0.3em] mb-4`}>
+                            {isExit ? 'Slot Freed for Patient' : 'Entry Clearance Confirmed'}
                         </p>
 
-                        {/* Visitor count badge */}
-                        {successData.visitor_count > 1 && (
-                            <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur rounded-full px-5 py-2 mb-8 border border-emerald-200 shadow-sm">
-                                <Users size={16} className="text-brand-600" />
-                                <span className="text-sm font-black text-brand-700 uppercase tracking-wider">
-                                    {successData.visitor_count} Visitors Entering
+                        {successData.permit_type === 'AFTER_HOURS' && (
+                            <div className="inline-flex items-center gap-2 bg-amber-100 rounded-full px-5 py-2 mb-4 border-2 border-amber-300 shadow-sm">
+                                <Clock size={16} className="text-amber-600" />
+                                <span className="text-sm font-black text-amber-700 uppercase tracking-wider">
+                                    After Hours Permit
                                 </span>
                             </div>
                         )}
-                        {(!successData.visitor_count || successData.visitor_count === 1) && <div className="mb-10" />}
+
+                        <div className="mb-10" />
 
                         {/* Info Cards */}
-                        <div className="bg-white/70 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-xl shadow-emerald-500/10 border border-emerald-100">
+                        <div className={`bg-white/70 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-xl shadow-${theme.accent}-500/10 border border-${theme.accent}-100`}>
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Visitor Name</p>
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1`}>Visitor Name</p>
                                     <p className="font-bold text-slate-800">{successData.visitor_name || 'Authorized Guest'}</p>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Age / Gender</p>
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1`}>Age / Gender</p>
                                     <p className="font-bold text-slate-800">{successData.visitor_age || '—'} / {successData.visitor_gender || '—'}</p>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Identity ({successData.id_type})</p>
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1`}>Identity ({successData.id_type})</p>
                                     <p className="font-bold text-slate-800">{successData.id_number || 'Verified'}</p>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Quota Usage</p>
-                                    <p className="font-bold text-emerald-600">Scan {successData.scanned_count} of {successData.max_visitors}</p>
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1`}>Pass Status</p>
+                                    <p className={`font-bold text-${theme.accent}-600`}>{isExit ? '✓ Checked Out' : '→ Checked In'}</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5`}>
                                         <User size={10} /> To Patient
                                     </p>
                                     <p className="text-lg font-black text-slate-800 tracking-tight">{successData.patient_name}</p>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5`}>
                                         <Building2 size={10} /> Room
                                     </p>
                                     <p className="text-lg font-black text-slate-800 tracking-tight">{successData.room_number}</p>
                                 </div>
                                 <div className="bg-white rounded-2xl p-4 text-left shadow-sm">
-                                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
+                                    <p className={`text-[9px] font-black text-${theme.accent}-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5`}>
                                         <Activity size={10} /> Bed
                                     </p>
                                     <p className="text-lg font-black text-slate-800 tracking-tight">{successData.bed_number}</p>
                                 </div>
                             </div>
-                            <div className="mt-5 pt-5 border-t border-emerald-50 flex items-center justify-between">
+                            <div className={`mt-5 pt-5 border-t border-${theme.accent}-50 flex items-center justify-between`}>
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                                     Slip ID: {successData.slip_id}
                                 </span>
@@ -604,8 +619,9 @@ const GuardDashboard = () => {
                                                     <tr className="bg-slate-50 border-b border-slate-100">
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Visitor</th>
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Patient</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Room</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Count</th>
+                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Bed / Room</th>
+                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Zone / Ward</th>
+
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Check-in</th>
                                                         <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
                                                     </tr>
@@ -614,34 +630,59 @@ const GuardDashboard = () => {
                                                     {activeVisitors.map((slip, i) => (
                                                         <tr key={slip.id} className={`border-b border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-brand-50/50 transition-colors`}>
                                                             <td className="px-4 py-3">
-                                                                <p className="text-xs font-bold text-slate-700">{slip.Relative?.name || slip.visitor_name || '—'}</p>
-                                                                <p className="text-[9px] text-slate-400 font-mono">{slip.Relative?.mobile_number || ''}</p>
+                                                                <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{slip.Relative?.name || slip.visitor_name || 'GUEST'}</p>
+                                                                <p className="text-[9px] text-slate-400 font-mono tracking-tighter">{slip.Relative?.mobile_number || ''}</p>
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                <p className="text-xs font-bold text-slate-700">{slip.Patient?.full_name || '—'}</p>
+                                                                <p className="text-xs font-bold text-slate-800 uppercase tracking-tight">{slip.Patient?.full_name || '—'}</p>
+                                                                <p className="text-[8px] font-mono text-slate-400">{slip.Patient?.uhid || ''}</p>
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                <p className="text-xs font-bold text-brand-500">
-                                                                    {slip.Patient?.Admissions?.[0]?.room_number || slip.room_number || '—'}
-                                                                </p>
+                                                                <div className="flex flex-col">
+                                                                    <p className="text-[14px] font-black text-brand-600 leading-none">
+                                                                        B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
+                                                                    </p>
+                                                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
+                                                                        RM_{slip.Patient?.Admissions?.[0]?.room_number || slip.room_number || '---'}
+                                                                    </p>
+                                                                </div>
                                                             </td>
-                                                            <td className="px-4 py-3">
-                                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${slip.visitor_count > 1 ? 'bg-brand-100 text-brand-700' : 'text-slate-500'}`}>
-                                                                    {slip.visitor_count > 1 ? `×${slip.visitor_count}` : '×1'}
-                                                                </span>
+                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">
+                                                                        {slip.ward_category?.replace(/_/g, ' ') || slip.ward_type || 'General'}
+                                                                    </span>
+                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+                                                                        {slip.ward_type || 'WARD'}
+                                                                    </span>
+                                                                </div>
                                                             </td>
+
                                                             <td className="px-4 py-3">
                                                                 <p className="text-[10px] font-bold text-slate-500 tabular-nums">
                                                                     {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : '—'}
                                                                 </p>
+                                                                {slip.valid_until && new Date() > new Date(slip.valid_until) && (
+                                                                    <span className="mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[8px] font-black rounded uppercase border border-red-200">
+                                                                        Expired
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3 text-right">
-                                                                <button
-                                                                    onClick={() => handleCheckout(slip.id)}
-                                                                    className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100"
-                                                                >
-                                                                    Checkout
-                                                                </button>
+                                                                <div className="flex flex-col gap-1 items-end">
+                                                                    <button
+                                                                        onClick={() => handleCheckout(slip.id)}
+                                                                        className="px-3 py-1 bg-brand-50 text-brand-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-brand-500 hover:text-white transition-all shadow-sm border border-brand-100"
+                                                                    >
+                                                                        Exit
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleCheckout(slip.id, true)}
+                                                                        className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100"
+                                                                    >
+                                                                        Force Remove
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     ))}

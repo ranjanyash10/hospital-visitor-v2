@@ -24,6 +24,7 @@ const guardRoutes = require('./routes/guardRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
+const walkinRoutes = require('./routes/walkinRoutes');
 
 const app = express();
 
@@ -102,6 +103,7 @@ app.use('/api/kiosk', kioskRoutes);
 app.use('/api/guard', guardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/visitor', visitorRoutes);
+app.use('/api/walkin', walkinRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -133,6 +135,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const startExpiryJob = require('./jobs/expiryJob');
+const startHISSyncJob = require('./services/hisSyncService');
 
 // Only start server if this file is run directly (not required as module)
 if (require.main === module) {
@@ -140,6 +143,7 @@ if (require.main === module) {
         .then(() => {
             console.log('Database connected.');
             startExpiryJob();
+            startHISSyncJob();
             server.listen(PORT, () => {
                 console.log(`Server running on port ${PORT}`);
                 console.log(`Socket.io ready on port ${PORT}`);

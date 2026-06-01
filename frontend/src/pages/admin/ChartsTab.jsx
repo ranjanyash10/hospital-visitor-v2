@@ -16,7 +16,7 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { TrendingUp, Users, MapPin, Calendar, RefreshCw } from 'lucide-react';
+import { TrendingUp, Users, MapPin, Calendar, RefreshCw, LogOut, ShieldAlert } from 'lucide-react';
 import api from '../../api';
 
 const COLORS = ['#f26034', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
@@ -25,6 +25,7 @@ const ChartsTab = () => {
     const [monthlyData, setMonthlyData] = useState([]);
     const [dayWiseData, setDayWiseData] = useState([]);
     const [zoneData, setZoneData] = useState([]);
+    const [exitData, setExitData] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const fetchAnalytics = async () => {
@@ -34,6 +35,7 @@ const ChartsTab = () => {
             setMonthlyData(res.data.monthly);
             setDayWiseData(res.data.daily);
             setZoneData(res.data.zones);
+            setExitData(res.data.exits || []);
         } catch (err) {
             console.error('Failed to fetch analytics:', err);
         } finally {
@@ -87,8 +89,9 @@ const ChartsTab = () => {
                                 <XAxis dataKey="name" stroke="#64748b" fontSize={10} fontWeight="bold" />
                                 <YAxis stroke="#64748b" fontSize={10} fontWeight="bold" />
                                 <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                    contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', color: '#1e293b', fontSize: '12px', fontWeight: 'bold' }}
                                     itemStyle={{ color: '#f26034' }}
+                                    labelStyle={{ color: '#64748b', marginBottom: '4px' }}
                                 />
                                 <Area type="monotone" dataKey="visits" stroke="#f26034" fillOpacity={1} fill="url(#colorVisits)" />
                             </AreaChart>
@@ -122,7 +125,9 @@ const ChartsTab = () => {
                                         ))}
                                     </Pie>
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                        contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', color: '#1e293b', fontSize: '12px', fontWeight: 'bold' }}
+                                        itemStyle={{ color: '#1e293b' }}
+                                        labelStyle={{ color: '#64748b', marginBottom: '4px' }}
                                     />
                                     <Legend
                                         layout="horizontal"
@@ -143,6 +148,54 @@ const ChartsTab = () => {
                 </div>
             </div>
 
+            {/* Checkout Dynamics Chart */}
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/50">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-red-50 rounded-xl">
+                        <LogOut className="w-6 h-6 text-red-500" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800 tracking-tight">Checkout Dynamics</h3>
+                    <div className="ml-auto flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 bg-emerald-500 rounded-sm" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Self Exit</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 bg-indigo-500 rounded-sm" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Overstay / Expired</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="h-[200px] w-full">
+                    {exitData && exitData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={exitData} layout="vertical" margin={{ left: 60, right: 60 }}>
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} fontWeight="bold" width={120} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', color: '#1e293b', fontSize: '12px', fontWeight: 'bold' }}
+                                    cursor={{ fill: '#f8fafc' }}
+                                />
+                                <Bar dataKey="value" barSize={32} radius={[0, 10, 10, 0]}>
+                                    {exitData.map((entry, index) => (
+                                        <Cell 
+                                            key={`cell-${index}`} 
+                                            fill={entry.name === 'Self Exit' ? '#10b981' : '#6366f1'} 
+                                        />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-200">
+                            <ShieldAlert size={48} className="mb-2 opacity-20" />
+                            <p className="text-xs font-bold uppercase tracking-widest">No exit data recorded yet</p>
+                            <p className="text-[10px] font-medium text-slate-400 mt-1">Metrics will populate as visitors checkout</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Day-wise Trends Chart */}
             <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-xl shadow-slate-200/50">
                 <div className="flex items-center gap-3 mb-6">
@@ -158,8 +211,10 @@ const ChartsTab = () => {
                             <XAxis dataKey="day" stroke="#64748b" fontSize={10} fontWeight="bold" />
                             <YAxis stroke="#64748b" fontSize={10} fontWeight="bold" />
                             <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
-                                cursor={{ fill: '#ffffff05' }}
+                                contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', color: '#1e293b', fontSize: '12px', fontWeight: 'bold' }}
+                                itemStyle={{ color: '#f59e0b' }}
+                                labelStyle={{ color: '#64748b', marginBottom: '4px' }}
+                                cursor={{ fill: '#f8fafc' }}
                             />
                             <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                         </BarChart>

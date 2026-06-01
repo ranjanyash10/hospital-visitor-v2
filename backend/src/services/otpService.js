@@ -125,14 +125,22 @@ const verifyOtp = async (mobileNumber, otp) => {
     return { valid: true };
 };
 
-const sendRegistrationLink = async (mobileNumber, patientName, uhid, ward, bed) => {
+const sendRegistrationLink = async (mobileNumber, patientName, uhid, ward, bed, wardCategory) => {
+    const { VISITING_SCHEDULE, formatTimeDisplay } = require('../config/visitingSchedule');
+
     // If running on DigitalOcean/Cloud, process.env.VISITOR_PORTAL_URL will be set to https://app.ondigitalocean.app/visitor/register
-    const portalUrl = process.env.VISITOR_PORTAL_URL || 'http://localhost:5173/visitor/register';
+    const portalUrl = process.env.VISITOR_PORTAL_URL || 'http://127.0.0.1:5173/visitor/register';
 
     // Ensure portalUrl doesn't have a trailing slash before appending UHID
     const base = portalUrl.endsWith('/') ? portalUrl.slice(0, -1) : portalUrl;
     const link = `${base}/${uhid}`;
-    const message = `Sri Balaji Action Medical Institute: ${patientName} has been admitted (Ward: ${ward}, Bed: ${bed}). Please pre-register for your visitor pass here: ${link}`;
+
+    // Look up visiting hours for this ward
+    const schedule = VISITING_SCHEDULE[wardCategory] || VISITING_SCHEDULE[ward] || VISITING_SCHEDULE['WARD'];
+    const morningHours = `${formatTimeDisplay(schedule.morning.from)} - ${formatTimeDisplay(schedule.morning.to)}`;
+    const eveningHours = `${formatTimeDisplay(schedule.evening.from)} - ${formatTimeDisplay(schedule.evening.to)}`;
+
+    const message = `Sri Balaji Action Medical Institute: ${patientName} has been admitted (Ward: ${ward}, Bed: ${bed}).\n\n🕐 *Visiting Hours*\nMorning: ${morningHours}\nEvening: ${eveningHours}\n\nPlease pre-register for your visitor pass here: ${link}`;
 
     return await sendSMS(mobileNumber, message);
 };

@@ -5,6 +5,7 @@ import GuardDashboard from './pages/guard/GuardDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import VisitorPortal from './pages/visitor/VisitorPortal';
 import VisitorRegistrationForm from './pages/visitor/VisitorRegistrationForm';
+import WalkInKiosk from './pages/walkin/WalkInKiosk';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           {/* Visitor Portal (public — scanned via guard QR) */}
           <Route path="/visitor" element={<VisitorPortal />} />
           <Route path="/visitor/register/:uhid" element={<VisitorRegistrationForm />} />
+          <Route path="/walkin" element={<WalkInKiosk />} />
 
           {/* Guard Routes */}
           <Route path="/" element={<GuardLogin />} />

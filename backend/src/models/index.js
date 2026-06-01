@@ -80,6 +80,11 @@ const Admission = sequelize.define('Admission', {
     admitted_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
+    },
+    ward_category: {
+        type: DataTypes.STRING(30),
+        allowNull: false,
+        defaultValue: 'WARD'
     }
 }, { tableName: 'admissions', timestamps: false });
 
@@ -158,7 +163,7 @@ const VisitorSlip = sequelize.define('VisitorSlip', {
     },
     valid_until: {
         type: DataTypes.DATE,
-        allowNull: false
+        allowNull: true
     },
     status: {
         type: DataTypes.ENUM('ACTIVE', 'VISITING', 'EXPIRED', 'USED', 'REVOKED'),
@@ -204,6 +209,15 @@ const VisitorSlip = sequelize.define('VisitorSlip', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
         allowNull: false
+    },
+    permit_type: {
+        type: DataTypes.STRING(20),
+        defaultValue: 'REGULAR',
+        allowNull: false
+    },
+    ward_category: {
+        type: DataTypes.STRING(30),
+        allowNull: true
     }
 }, { tableName: 'visitor_slips', timestamps: true, updatedAt: false });
 

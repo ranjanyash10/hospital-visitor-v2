@@ -1,5 +1,5 @@
 const { VisitorSlip, SlipVerification, User, Patient, Relative, Admission, SystemSetting, AuditLog, sequelize } = require('../models');
-const { isAfter } = require('date-fns');
+const { isAfter, addHours } = require('date-fns');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
@@ -62,7 +62,7 @@ exports.verifySlip = async (req, res) => {
             include: [
                 { model: Patient, attributes: ['full_name', 'uhid'] },
                 { model: Relative, attributes: ['name', 'relationship'] },
-                { model: Admission, attributes: ['max_visitors', 'status', 'room_number', 'bed_number'] }
+                { model: Admission, attributes: ['max_visitors', 'status', 'room_number', 'bed_number', 'visit_duration_hours'] }
             ]
         });
 
@@ -73,32 +73,57 @@ exports.verifySlip = async (req, res) => {
         let status = 'DENIED';
         let reason = 'Unknown error';
 
-        if (slip.status === 'EXPIRED' || slip.status === 'REVOKED') {
+        // 1. Basic Status Checks
+        if (slip.status === 'REVOKED') {
             status = 'DENIED';
-            reason = `Slip is ${slip.status}`;
-        } else if (isAfter(new Date(), slip.valid_until)) {
+            reason = 'Slip Revoked by Administration';
+        } else if (slip.status === 'EXPIRED' || slip.status === 'USED') {
             status = 'DENIED';
-            reason = 'Slip Expired';
+            reason = 'Slip already used or expired';
+        } else if (slip.valid_until && isAfter(new Date(), slip.valid_until)) {
+            // Auto-detect expiry on scan
+            status = 'DENIED';
+            reason = 'Slip Expired (Time limit reached)';
             slip.status = 'EXPIRED';
+            slip.expiryReason = 'TIME_LAPSED';
             await slip.save();
-        } else {
-            // V2 Multi-Scan Logic
+        } 
+        // 2. EXIT LOGIC (If they are already inside)
+        else if (slip.status === 'VISITING') {
+            slip.status = 'EXPIRED';
+            slip.expiryReason = 'REGULAR_EXIT';
+            await slip.save();
+            status = 'EXIT_GRANTED';
+            reason = 'Checkout Successful: Thank you for visiting.';
+        }
+        // 3. ENTRY LOGIC (If they are trying to enter)
+        else if (slip.status === 'ACTIVE') {
             const maxAllowed = slip.Admission?.max_visitors || 1;
 
-            if (slip.scanned_count >= maxAllowed) {
-                status = 'DENIED';
-                reason = `Access Denied: Maximum scan limit (${maxAllowed}) reached.`;
-                if (slip.status !== 'USED') {
-                    slip.status = 'USED';
-                    await slip.save();
+            // Strict Concurrency: Check how many people are ALREADY inside for this patient
+            const currentVisitingCount = await VisitorSlip.sum('visitor_count', {
+                where: {
+                    patient_id: slip.patient_id,
+                    status: 'VISITING'
                 }
+            }) || 0;
+
+            if (currentVisitingCount + slip.visitor_count > maxAllowed) {
+                status = 'DENIED';
+                reason = `Access Denied: Patient already has ${currentVisitingCount} visitor(s) inside. Max allowed is ${maxAllowed}. Please wait for others to exit.`;
             } else {
+                // First scan: activate the timer now
+                if (!slip.valid_until) {
+                    const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                    slip.valid_until = addHours(new Date(), durationHours);
+                }
+
                 slip.scanned_count += 1;
                 slip.status = 'VISITING';
-
                 await slip.save();
+                
                 status = 'GRANTED';
-                reason = `Access Granted: Entry ${slip.scanned_count} of ${maxAllowed}`;
+                reason = 'Access Granted: Welcome to the facility.';
             }
         }
 
@@ -106,7 +131,7 @@ exports.verifySlip = async (req, res) => {
         await SlipVerification.create({
             slip_id: slip.id,
             verified_by_user_id: guardId,
-            status: status === 'GRANTED' ? 'GRANTED' : 'DENIED',
+            status: (status === 'GRANTED' || status === 'EXIT_GRANTED') ? 'GRANTED' : 'DENIED',
             rejection_reason: reason
         });
 
@@ -114,10 +139,9 @@ exports.verifySlip = async (req, res) => {
             return res.status(200).json({ valid: false, message: reason, slip });
         }
 
-        const maxAllowed = slip.Admission?.max_visitors || 1;
-
         res.json({
             valid: true,
+            status: status, // GRANTED or EXIT_GRANTED
             message: reason,
             slip: {
                 ...slip.toJSON(),
@@ -126,7 +150,9 @@ exports.verifySlip = async (req, res) => {
                 room_number: slip.Admission?.room_number,
                 bed_number: slip.Admission?.bed_number,
                 scanned_count: slip.scanned_count,
-                max_visitors: maxAllowed
+                max_visitors: slip.Admission?.max_visitors || 1,
+                permit_type: slip.permit_type || 'REGULAR',
+                valid_until: slip.valid_until
             }
         });
 
@@ -138,12 +164,12 @@ exports.verifySlip = async (req, res) => {
 
 // --- Admin Controller ---
 exports.getDashboardStats = async (req, res) => {
-    // Simple stats: Active includes both issued (ACTIVE) and currently present (VISITING)
-    const activeSlips = await VisitorSlip.count({
+    // Active slips refers ONLY to visitors currently present in the building (status: VISITING)
+    const activeSlips = await VisitorSlip.sum('scanned_count', {
         where: {
-            status: { [Op.in]: ['ACTIVE', 'VISITING'] }
+            status: 'VISITING'
         }
-    });
+    }) || 0;
     const todaySlips = await VisitorSlip.count({
         where: {
             createdAt: { [Op.gt]: new Date(new Date().setHours(0, 0, 0, 0)) }
@@ -265,21 +291,21 @@ exports.acceptSlip = async (req, res) => {
 
 exports.checkoutSlip = async (req, res) => {
     try {
-        const { id } = req.body;
+        const { id, forced = false } = req.body;
         const slip = await VisitorSlip.findByPk(id);
         if (!slip) return res.status(404).json({ error: 'Slip not found' });
 
         slip.status = 'EXPIRED';
-        slip.expiryReason = 'CHECKOUT';
+        slip.expiryReason = forced ? 'FORCED_EXIT' : 'MANUAL_CHECKOUT';
         await slip.save();
 
         await AuditLog.create({
-            action: 'SLIP_CHECKOUT',
-            details: `Manual checkout for slip ID: ${id}`,
+            action: forced ? 'GUARD_FORCED_EXIT' : 'SLIP_CHECKOUT',
+            details: `${forced ? 'FORCED EXIT' : 'Manual checkout'} for slip ID: ${id}`,
             user_id: req.user.id
         });
 
-        res.json({ success: true, message: 'Visitor Checked Out Successfully' });
+        res.json({ success: true, message: forced ? 'Visitor Removed and Logged' : 'Visitor Checked Out Successfully' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Checkout failed' });

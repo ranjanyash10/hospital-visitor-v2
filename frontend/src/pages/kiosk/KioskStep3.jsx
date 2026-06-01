@@ -143,7 +143,9 @@ const KioskStep3 = () => {
                                             <div className="text-center pt-8 border-t border-dashed border-slate-100">
                                                 <p className="text-xs font-black text-slate-900 font-mono tracking-widest uppercase">{slip.slip_token}</p>
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-3 italic leading-relaxed">
-                                                    EXP: {format(new Date(slip.valid_until), 'HH:mm')} | {format(new Date(slip.valid_until), 'dd/MM/yyyy')}
+                                                    {slip.valid_until
+                                                        ? `EXP: ${format(new Date(slip.valid_until), 'HH:mm')} | ${format(new Date(slip.valid_until), 'dd/MM/yyyy')}`
+                                                        : 'Timer activates on QR scan at gate'}
                                                 </p>
                                             </div>
                                         </div>

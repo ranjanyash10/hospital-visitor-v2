@@ -3,6 +3,7 @@ const { isAfter } = require('date-fns');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
+const { WARD_CATEGORIES, getActiveVisitingWindow } = require('../config/visitingSchedule');
 
 // --- Auth Controller ---
 exports.login = async (req, res) => {
@@ -93,7 +94,7 @@ exports.verifySlip = async (req, res) => {
 // --- Admin Controller ---
 exports.getDashboardStats = async (req, res) => {
     // Simple stats
-    const activeSlips = await VisitorSlip.count({ where: { status: 'ACTIVE' } });
+    const activeSlips = await VisitorSlip.sum('scanned_count', { where: { status: 'VISITING' } }) || 0;
     const todaySlips = await VisitorSlip.count({
         where: {
             createdAt: { [Op.gt]: new Date(new Date().setHours(0, 0, 0, 0)) }
@@ -126,9 +127,9 @@ exports.getSlips = async (req, res) => {
 
         // Archive logic: if archive=true, show only non-active slips
         if (archive === 'true') {
-            where.status = { [Op.ne]: 'ACTIVE' };
+            where.status = { [Op.ne]: 'VISITING' };
         } else {
-            where.status = 'ACTIVE';
+            where.status = 'VISITING';
         }
 
         const { count, rows: slips } = await VisitorSlip.findAndCountAll({
@@ -297,11 +298,14 @@ exports.getPatients = async (req, res) => {
             order: [['admitted_at', 'DESC']]
         });
 
-        const patients = await Promise.all(admissions.map(async (adm) => {
+        // Filter out orphaned admissions (no linked patient)
+        const validAdmissions = admissions.filter(adm => adm.Patient && adm.Patient.id);
+
+        const patients = await Promise.all(validAdmissions.map(async (adm) => {
             const activeVisitorCount = await VisitorSlip.sum('visitor_count', {
                 where: {
                     patient_id: adm.Patient.id,
-                    status: { [Op.in]: ['ACTIVE', 'VISITING'] }
+                    status: 'VISITING'
                 }
             }) || 0;
 
@@ -310,6 +314,7 @@ exports.getPatients = async (req, res) => {
                 where: { patient_id: adm.Patient.id, is_primary: true }
             });
 
+            const visitingWindow = getActiveVisitingWindow(adm.ward_category || 'WARD');
             return {
                 admission_id: adm.id,
                 patient_id: adm.Patient.id,
@@ -318,11 +323,15 @@ exports.getPatients = async (req, res) => {
                 room_number: adm.room_number,
                 bed_number: adm.bed_number,
                 ward_type: adm.ward_type,
+                ward_category: adm.ward_category || 'WARD',
                 max_visitors: adm.max_visitors || 1,
                 visit_duration_hours: adm.visit_duration_hours || 1,
                 active_visitors: activeVisitorCount,
                 relative_name: primaryRelative?.name || '',
-                relative_mobile: primaryRelative?.mobile_number || ''
+                relative_mobile: primaryRelative?.mobile_number || '',
+                visiting_allowed: visitingWindow.allowed,
+                visiting_session: visitingWindow.session,
+                visiting_next: visitingWindow.nextWindow
             };
         }));
 
@@ -527,19 +536,32 @@ exports.getAnalytics = async (req, res) => {
             });
         });
 
-        // 3. Zone Distribution
-        const zoneSlips = await VisitorSlip.findAll({
+        // 3. Zone Distribution (Now by ward_category for exact hospital location)
+        const rawZones = await VisitorSlip.findAll({
             where: { status: { [Op.in]: ['ACTIVE', 'VISITING'] } },
             attributes: [
-                ['ward_type', 'name'],
+                ['ward_category', 'key'],
                 [sequelize.fn('sum', sequelize.col('visitor_count')), 'value']
             ],
-            group: ['ward_type'],
+            group: ['ward_category'],
             raw: true
         });
 
+        // Map keys to labels from WARD_CATEGORIES
+        const zoneSlips = rawZones.map(z => {
+            const val = parseInt(z.value) || 0;
+            const categoryKey = z.key || 'GENERAL';
+            const category = WARD_CATEGORIES.find(c => c.key === categoryKey) || { label: 'General Ward' };
+            
+            return {
+                name: category.label,
+                value: val
+            };
+        }).filter(z => z.value > 0);
+
         // Helper to format data in JS if DB grouping failed or for consistency
         const formatMonthly = (data) => {
+            if (data.length === 0) return [];
             if (!data[0]?.month) {
                 // Manual group by month
                 const groups = {};
@@ -550,36 +572,71 @@ exports.getAnalytics = async (req, res) => {
                 return Object.entries(groups).map(([name, visits]) => ({ name, visits }));
             }
             return data.map(d => ({
-                name: new Date(d.month).toLocaleString('default', { month: 'short' }),
-                visits: parseInt(d.count)
+                name: d.month ? new Date(d.month).toLocaleString('default', { month: 'short' }) : 'Unknown',
+                visits: parseInt(d.count) || 0
             }));
         };
 
         const formatDaily = (data) => {
+            if (data.length === 0) return [];
             if (!data[0]?.day) {
                 const groups = {};
                 data.forEach(s => {
-                    const d = new Date(s.createdAt).getDate();
+                    const d = new Date(s.createdAt).toDateString();
                     groups[d] = (groups[d] || 0) + (s.visitor_count || 1);
                 });
                 return Array.from({ length: 30 }, (_, i) => {
-                    const dayNum = new Date(new Date().setDate(now.getDate() - (29 - i))).getDate();
-                    return { day: dayNum, count: groups[dayNum] || 0 };
+                    const dObj = new Date(new Date().setDate(now.getDate() - (29 - i)));
+                    const dStr = dObj.toDateString();
+                    return { day: dObj.getDate(), count: groups[dStr] || 0 };
                 });
             }
             // Map real data to 30-day buckets
             const map = new Map();
-            data.forEach(d => map.set(new Date(d.day).getDate(), parseInt(d.count)));
+            data.forEach(d => {
+                if (d.day) map.set(new Date(d.day).toDateString(), parseInt(d.count) || 0);
+            });
             return Array.from({ length: 30 }, (_, i) => {
-                const dayNum = new Date(new Date().setDate(now.getDate() - (29 - i))).getDate();
-                return { day: dayNum, count: map.get(dayNum) || 0 };
+                const dObj = new Date(new Date().setDate(now.getDate() - (29 - i)));
+                const dStr = dObj.toDateString();
+                return { day: dObj.getDate(), count: map.get(dStr) || 0 };
             });
         };
+
+        // 4. Checkout Breakdown (Self vs Forced vs Auto)
+        const rawExits = await VisitorSlip.findAll({
+            where: { 
+                status: 'EXPIRED',
+                expiryReason: { [Op.ne]: null }
+            },
+            attributes: [
+                'expiryReason',
+                [sequelize.fn('count', sequelize.col('id')), 'count']
+            ],
+            group: ['expiryReason'],
+            raw: true
+        });
+
+        const checkoutBreakdown = [
+            { name: 'Self Exit', value: 0 },
+            { name: 'Overstay / Expired', value: 0 }
+        ];
+
+        rawExits.forEach(e => {
+            const count = parseInt(e.count) || 0;
+            if (e.expiryReason === 'REGULAR_EXIT' || e.expiryReason === 'MANUAL_CHECKOUT') {
+                checkoutBreakdown[0].value += count;
+            } else {
+                // Includes FORCED_EXIT, TIME_LAPSED, AUTO_TIMEOUT
+                checkoutBreakdown[1].value += count;
+            }
+        });
 
         res.json({
             monthly: formatMonthly(monthlySlips),
             daily: formatDaily(dailySlips),
-            zones: zoneSlips.map(z => ({ name: z.name || 'Unknown', value: parseInt(z.value) }))
+            zones: zoneSlips.map(z => ({ name: z.name || 'Unknown', value: parseInt(z.value) })),
+            exits: checkoutBreakdown.filter(b => b.value > 0)
         });
 
     } catch (error) {
@@ -670,7 +727,7 @@ exports.updateMyPassword = async (req, res) => {
 // --- Patient Admission Logic (V2 Simulation) ---
 exports.admitPatient = async (req, res) => {
     try {
-        const { uhid, full_name, mobile_number, relative_name, ward_type, room_number, bed_number, max_visitors, visit_duration_hours } = req.body;
+        const { uhid, full_name, mobile_number, relative_name, ward_type, ward_category, room_number, bed_number, max_visitors, visit_duration_hours } = req.body;
 
         if (!uhid || !full_name || !mobile_number) {
             return res.status(400).json({ error: 'UHID, Full Name, and Mobile are required' });
@@ -691,6 +748,7 @@ exports.admitPatient = async (req, res) => {
                 room_number,
                 bed_number,
                 ward_type: ward_type || 'GENERAL',
+                ward_category: ward_category || 'WARD',
                 max_visitors: max_visitors || 1,
                 visit_duration_hours: visit_duration_hours || 1,
                 status: 'ACTIVE',
@@ -728,7 +786,7 @@ exports.admitPatient = async (req, res) => {
         const { sendRegistrationLink } = require('../services/otpService');
         // We use the cleaned mobile for Twilio
         const cleanedMobile = mobile_number.replace(/\D/g, '');
-        sendRegistrationLink(cleanedMobile, full_name, uhid, ward_type, bed_number).catch(err => console.error('WhatsApp failed:', err));
+        sendRegistrationLink(cleanedMobile, full_name, uhid, ward_type, bed_number, ward_category).catch(err => console.error('WhatsApp failed:', err));
 
         res.json({
             success: true,

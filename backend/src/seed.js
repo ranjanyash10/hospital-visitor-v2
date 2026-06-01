@@ -29,14 +29,16 @@ const seed = async () => {
                 ward_type: 'GENERAL',
                 room_number: '101',
                 bed_number: '1',
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                max_visitors: 2
             },
             {
                 patient_id: patients[1].id, // Priya
                 ward_type: 'PRIVATE',
                 room_number: '202',
                 bed_number: 'A',
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                max_visitors: 2
             }
         ]);
 
