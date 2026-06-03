@@ -20,34 +20,101 @@ const SYNC_INTERVAL = parseInt(process.env.HIS_SYNC_INTERVAL_MS) || 30000;
 
 /**
  * Fetch current inpatients from the HIS API Bridge.
- * Expected response: Array of objects with at least:
- *   { UHID, PatientName, WardType, RoomNo, BedNo, RelativeName, MobileNumber }
+ * Expected response: Array of objects or object containing an array.
  *
- * ⚠️  Adjust field names below to match your actual HIS schema.
+ * Supports auth token and query parameters configured via environment variables.
  */
 const fetchHISInpatients = async () => {
-    // Use native fetch (Node 18+) or require('node-fetch') for older versions
-    const response = await fetch(HIS_API_URL);
-    if (!response.ok) {
-        throw new Error(`HIS API returned ${response.status}: ${response.statusText}`);
+    if (!HIS_API_URL) {
+        throw new Error('HIS_API_URL environment variable is not set');
     }
-    return await response.json();
+
+    let requestUrl = HIS_API_URL;
+    
+    // Automatically append default query parameters if none are present in the URL
+    if (!requestUrl.includes('?')) {
+        const hospitalLocationId = process.env.HIS_HOSPITAL_LOCATION_ID || '1';
+        const facilityId = process.env.HIS_FACILITY_ID || '2';
+        requestUrl = `${requestUrl}?HospitalLocationId=${hospitalLocationId}&FacilityId=${facilityId}&UHID=0&MobileNo=`;
+    }
+
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+
+    // Attach Authorization Key if configured
+    if (process.env.HIS_AUTH_KEY) {
+        const authHeaderName = process.env.HIS_AUTH_HEADER || 'Authorization';
+        const authPrefix = process.env.HIS_AUTH_PREFIX !== undefined ? process.env.HIS_AUTH_PREFIX : 'Bearer ';
+        headers[authHeaderName] = `${authPrefix}${process.env.HIS_AUTH_KEY}`;
+    }
+
+    console.log(`[HIS Sync] Fetching inpatients from: ${requestUrl}`);
+
+    const response = await fetch(requestUrl, {
+        method: 'GET',
+        headers
+    });
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`HIS API returned ${response.status}: ${response.statusText} | Response: ${errText}`);
+    }
+
+    const rawResponse = await response.json();
+
+    // Dynamically extract the array of patient records
+    if (Array.isArray(rawResponse)) {
+        return rawResponse;
+    } else if (rawResponse && Array.isArray(rawResponse.response)) {
+        return rawResponse.response;
+    } else if (rawResponse && Array.isArray(rawResponse.data)) {
+        return rawResponse.data;
+    } else if (rawResponse && Array.isArray(rawResponse.patients)) {
+        return rawResponse.patients;
+    } else if (rawResponse && typeof rawResponse === 'object') {
+        const arrayKey = Object.keys(rawResponse).find(k => Array.isArray(rawResponse[k]));
+        if (arrayKey) {
+            return rawResponse[arrayKey];
+        }
+    }
+
+    throw new Error('Invalid HIS API response format: expected an array or an object containing an array.');
+};
+
+/**
+ * Parse gender description from HIS (e.g. "77 Y/F" or "83 Y/M") into standard VMS formats ("MALE", "FEMALE", "Other")
+ */
+const parseGender = (genderStr) => {
+    if (!genderStr) return 'Other';
+    const clean = genderStr.toUpperCase();
+    if (clean.includes('/F') || clean.endsWith('F') || clean.includes('FEMALE')) {
+        return 'FEMALE';
+    }
+    if (clean.includes('/M') || clean.endsWith('M') || clean.includes('MALE')) {
+        return 'MALE';
+    }
+    return 'Other';
 };
 
 /**
  * Map a raw HIS record to our internal format.
- * ⚠️  UPDATE THESE FIELD NAMES to match your HIS API output.
+ * Supports various naming casings (snake_case, camelCase, PascalCase) and Sri Balaji HIS specific fields.
  */
-const mapHISRecord = (record) => ({
-    uhid: record.UHID,
-    full_name: record.PatientName,
-    ward_type: record.WardType || 'GENERAL',
-    ward_category: record.WardCategory || 'WARD',
-    room_number: record.RoomNo || '—',
-    bed_number: record.BedNo || '—',
-    relative_name: record.RelativeName || 'Relative',
-    mobile_number: record.MobileNumber,
-});
+const mapHISRecord = (record) => {
+    const gender = parseGender(record.PatientGender || record.gender || record.Gender);
+    return {
+        uhid: String(record.RegistrationNo || record.UHID || record.uhid || record.patientId || record.PatientId || ''),
+        full_name: (record.PatientName || record.patientName || record.fullName || record.FullName || record.name || record.Name || '').trim(),
+        gender,
+        ward_type: record.Ward || record.WardType || record.wardType || record.ward_type || 'GENERAL',
+        ward_category: record.WardCategory || record.wardCategory || record.ward_category || 'WARD',
+        room_number: record.RoomNo || record.roomNo || record.roomNumber || record.RoomNumber || '—',
+        bed_number: record.BedNo || record.bedNo || record.bedNumber || record.BedNumber || '—',
+        relative_name: record.GuardianName || record.RelativeName || record.relativeName || record.relative_name || 'Relative',
+        mobile_number: record.MobileNo || record.MobileNumber || record.mobileNumber || record.mobile_number || record.mobileNo || '',
+    };
+};
 
 /**
  * Auto-Admit a single patient into the VMS.
@@ -58,7 +125,7 @@ const autoAdmitPatient = async (data) => {
         // Find or Create Patient
         const [patient] = await Patient.findOrCreate({
             where: { uhid: data.uhid },
-            defaults: { full_name: data.full_name, gender: 'Other' },
+            defaults: { full_name: data.full_name, gender: data.gender || 'Other' },
             transaction: t
         });
 

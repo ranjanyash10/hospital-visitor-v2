@@ -24,6 +24,15 @@ services:
       - key: VISITOR_PORTAL_URL
         scope: RUN_TIME
         value: ${APP_URL}/visitor/register
+      - key: HIS_SYNC_ENABLED
+        scope: RUN_TIME
+        value: ${HIS_SYNC_ENABLED}
+      - key: HIS_API_URL
+        scope: RUN_TIME
+        value: ${HIS_API_URL}
+      - key: HIS_AUTH_KEY
+        scope: RUN_TIME
+        value: ${HIS_AUTH_KEY}
 
   - name: frontend
     source_dir: frontend
