@@ -52,7 +52,7 @@ const Admission = sequelize.define('Admission', {
         primaryKey: true
     },
     ward_type: {
-        type: DataTypes.ENUM('GENERAL', 'PRIVATE'),
+        type: DataTypes.STRING(50),
         allowNull: false
     },
     room_number: {
