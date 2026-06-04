@@ -289,13 +289,39 @@ exports.toggleLockdown = async (req, res) => {
 // --- Patient Visitor Management ---
 exports.getPatients = async (req, res) => {
     try {
+        const { page = 1, limit = 15, search = '' } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        // Build patient search condition
+        const patientWhere = {};
+        if (search && search.trim()) {
+            patientWhere[Op.or] = [
+                { uhid: { [Op.iLike]: `%${search.trim()}%` } },
+                { full_name: { [Op.iLike]: `%${search.trim()}%` } }
+            ];
+        }
+
+        // Count total matching admissions
+        const totalCount = await Admission.count({
+            where: { status: 'ACTIVE' },
+            include: [{
+                model: Patient,
+                where: Object.keys(patientWhere).length > 0 ? patientWhere : undefined,
+                required: true
+            }]
+        });
+
         const admissions = await Admission.findAll({
             where: { status: 'ACTIVE' },
             include: [{
                 model: Patient,
-                attributes: ['id', 'full_name', 'uhid']
+                attributes: ['id', 'full_name', 'uhid'],
+                where: Object.keys(patientWhere).length > 0 ? patientWhere : undefined,
+                required: true
             }],
-            order: [['admitted_at', 'DESC']]
+            order: [['admitted_at', 'DESC']],
+            limit: parseInt(limit),
+            offset: parseInt(offset)
         });
 
         // Filter out orphaned admissions (no linked patient)
@@ -335,7 +361,15 @@ exports.getPatients = async (req, res) => {
             };
         }));
 
-        res.json(patients);
+        res.json({
+            patients,
+            pagination: {
+                total: totalCount,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(totalCount / parseInt(limit))
+            }
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server Error' });

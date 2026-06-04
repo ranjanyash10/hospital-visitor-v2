@@ -25,6 +25,10 @@ const AdminDashboard = () => {
     const [editValue, setEditValue] = useState(1);
     const [editContact, setEditContact] = useState({ admission_id: null, name: '', mobile: '' });
 
+    // Patient Quotas pagination & search state
+    const [patientPagination, setPatientPagination] = useState({ page: 1, limit: 15, pages: 1, total: 0 });
+    const [patientSearch, setPatientSearch] = useState('');
+
     // Account Management State
     const [passwords, setPasswords] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
     const [accountLoading, setAccountLoading] = useState(false);
@@ -81,8 +85,15 @@ const AdminDashboard = () => {
                 const ld = res.data.find(s => s.key === 'SYSTEM_LOCKDOWN');
                 setLockdown(ld?.value === 'TRUE');
             } else if (activeView === 'patients') {
-                const res = await api.get('/admin/patients');
-                setPatients(res.data);
+                const res = await api.get('/admin/patients', {
+                    params: {
+                        page: patientPagination.page,
+                        limit: patientPagination.limit,
+                        search: patientSearch
+                    }
+                });
+                setPatients(res.data.patients);
+                setPatientPagination(prev => ({ ...prev, ...res.data.pagination }));
             }
         } catch (error) {
             console.error(error);
@@ -97,7 +108,7 @@ const AdminDashboard = () => {
             if (activeView === 'registry') fetchData();
         }, 30000);
         return () => clearInterval(interval);
-    }, [pagination.page, pagination.limit, filters, activeView]);
+    }, [pagination.page, pagination.limit, filters, activeView, patientPagination.page, patientSearch]);
 
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
@@ -762,19 +773,39 @@ const AdminDashboard = () => {
     const renderPatients = () => (
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <div className="flex items-center gap-3">
+                <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-center bg-slate-50/50 gap-4">
+                    <div className="flex items-center gap-3 self-start">
                         <UserCheck className="text-indigo-600" size={20} />
                         <h4 className="text-base md:text-lg font-bold text-slate-800 font-outfit uppercase tracking-tight">Patient Visitor Quotas</h4>
+                        <span className="px-2 md:px-3 py-1 bg-indigo-50 text-indigo-500 text-[9px] md:text-[10px] font-bold rounded-md uppercase border border-indigo-100 italic">
+                            {patientPagination.total} Admissions
+                        </span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap gap-2 md:gap-4 items-center w-full xl:w-auto">
+                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 md:px-3 text-slate-400 flex-1 sm:flex-none">
+                            <Search size={14} />
+                            <input
+                                type="text"
+                                placeholder="Search UHID or Name..."
+                                value={patientSearch}
+                                onChange={(e) => {
+                                    setPatientSearch(e.target.value);
+                                    setPatientPagination(prev => ({ ...prev, page: 1 }));
+                                }}
+                                className="h-9 md:h-10 bg-transparent text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-600 outline-none w-full min-w-[160px] placeholder:normal-case placeholder:tracking-normal placeholder:font-medium"
+                            />
+                            {patientSearch && (
+                                <button onClick={() => { setPatientSearch(''); setPatientPagination(prev => ({ ...prev, page: 1 })); }} className="text-slate-300 hover:text-red-500 transition-colors">
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
                         <button
                             onClick={() => setShowAdmitForm(true)}
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
                         >
                             <Activity size={14} /> New Admission
                         </button>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{patients.length} Active Admissions</span>
                     </div>
                 </div>
 
@@ -786,12 +817,21 @@ const AdminDashboard = () => {
                                 <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Location</th>
                                 <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Visitor Contact</th>
                                 <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Active</th>
-                                <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Max</th>
+                                <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Max Visitors</th>
                                 <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Duration</th>
                                 <th className="px-4 md:px-6 py-3 md:py-4 text-[11px] md:text-[13px] font-semibold text-slate-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
+                            {patients.length === 0 && (
+                                <tr>
+                                    <td colSpan="7" className="px-8 py-12 text-center">
+                                        <div className="text-slate-300 text-sm font-bold uppercase tracking-widest">
+                                            {patientSearch ? `No patients matching "${patientSearch}"` : 'No active admissions'}
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
                             {patients.map((p) => (
                                 <tr key={p.admission_id} className="group hover:bg-slate-50/50 transition-all">
                                     <td className="px-6 md:px-8 py-4 md:py-5 whitespace-nowrap">
@@ -846,7 +886,7 @@ const AdminDashboard = () => {
                                                 inputMode="numeric"
                                                 value={editValue}
                                                 onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setEditValue(v === '' ? '' : parseInt(v)); }}
-                                                className="w-12 h-7 px-1.5 bg-white border border-slate-200 rounded text-[12px] font-bold text-center text-slate-800 outline-none focus:border-indigo-500"
+                                                className="w-12 h-7 px-1.5 bg-white border border-indigo-300 rounded text-[12px] font-bold text-center text-slate-800 outline-none focus:border-indigo-500 ring-2 ring-indigo-100"
                                                 autoFocus
                                             />
                                         ) : (
@@ -861,7 +901,7 @@ const AdminDashboard = () => {
                                                     inputMode="decimal"
                                                     value={editDuration}
                                                     onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); setEditDuration(v === '' ? '' : parseFloat(v)); }}
-                                                    className="w-12 h-7 px-1.5 bg-white border border-slate-200 rounded text-[12px] font-bold text-center text-slate-800 outline-none focus:border-amber-500"
+                                                    className="w-12 h-7 px-1.5 bg-white border border-amber-300 rounded text-[12px] font-bold text-center text-slate-800 outline-none focus:border-amber-500 ring-2 ring-amber-100"
                                                 />
                                                 <span className="text-[9px] font-bold text-slate-400">H</span>
                                             </div>
@@ -873,23 +913,34 @@ const AdminDashboard = () => {
                                         )}
                                     </td>
                                     <td className="px-4 md:px-6 py-4 md:py-5 text-right whitespace-nowrap">
-                                        <div className="flex flex-col gap-1 items-end">
+                                        <div className="flex gap-1.5 items-center justify-end">
                                             {editContact.admission_id === p.admission_id ? (
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => saveContactDetails(p.admission_id)} className="p-1.5 bg-emerald-600 text-white rounded"><Check size={12} /></button>
-                                                    <button onClick={() => setEditContact({ admission_id: null, name: '', mobile: '' })} className="p-1.5 bg-slate-200 text-slate-600 rounded"><X size={12} /></button>
-                                                </div>
+                                                <>
+                                                    <button onClick={() => saveContactDetails(p.admission_id)} className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all" title="Save Contact"><Check size={14} /></button>
+                                                    <button onClick={() => setEditContact({ admission_id: null, name: '', mobile: '' })} className="p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-all" title="Cancel"><X size={14} /></button>
+                                                </>
+                                            ) : editingPatient === p.admission_id ? (
+                                                <>
+                                                    <button onClick={() => saveMaxVisitors(p.admission_id)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-sm flex items-center gap-1.5" title="Save Quota"><Check size={14} /> Save</button>
+                                                    <button onClick={() => setEditingPatient(null)} className="p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-all" title="Cancel"><X size={14} /></button>
+                                                </>
                                             ) : (
-                                                <button onClick={() => setEditContact({ admission_id: p.admission_id, name: p.relative_name, mobile: p.relative_mobile })} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">Edit Contact</button>
-                                            )}
-
-                                            {editingPatient === p.admission_id ? (
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => saveMaxVisitors(p.admission_id)} className="p-1.5 bg-emerald-600 text-white rounded"><Check size={12} /></button>
-                                                    <button onClick={() => setEditingPatient(null)} className="p-1.5 bg-slate-200 text-slate-600 rounded"><X size={12} /></button>
-                                                </div>
-                                            ) : (
-                                                <button onClick={() => { setEditingPatient(p.admission_id); setEditValue(p.max_visitors); setEditDuration(p.visit_duration_hours); }} className="text-[9px] font-bold text-indigo-600 uppercase hover:underline">Edit Quota</button>
+                                                <>
+                                                    <button
+                                                        onClick={() => setEditContact({ admission_id: p.admission_id, name: p.relative_name, mobile: p.relative_mobile })}
+                                                        className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-500 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center gap-1"
+                                                        title="Edit Contact"
+                                                    >
+                                                        <Users size={12} /> Contact
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setEditingPatient(p.admission_id); setEditValue(p.max_visitors); setEditDuration(p.visit_duration_hours); }}
+                                                        className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-600 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-indigo-100 hover:border-indigo-300 transition-all flex items-center gap-1"
+                                                        title="Edit Visitor Quota & Duration"
+                                                    >
+                                                        <Pencil size={12} /> Quota
+                                                    </button>
+                                                </>
                                             )}
                                         </div>
                                     </td>
@@ -897,6 +948,32 @@ const AdminDashboard = () => {
                             ))}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="px-6 md:px-8 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <span className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                        {patientPagination.total} Records • Page {patientPagination.page} of {patientPagination.pages || 1}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <button
+                            disabled={patientPagination.page <= 1}
+                            onClick={() => setPatientPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            Prev
+                        </button>
+                        <div className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-bold font-mono">
+                            {patientPagination.page}/{patientPagination.pages || 1}
+                        </div>
+                        <button
+                            disabled={patientPagination.page >= patientPagination.pages}
+                            onClick={() => setPatientPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                            className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold uppercase hover:bg-slate-50 disabled:opacity-30 transition-all"
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
