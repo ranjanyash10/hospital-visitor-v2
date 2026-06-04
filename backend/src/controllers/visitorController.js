@@ -136,7 +136,7 @@ exports.lookupPatients = async (req, res) => {
     }
 };
 
-// 3. Send OTP to visitor
+// 3. Send OTP to visitor (LEGACY — kept for backward compatibility)
 exports.sendOtp = async (req, res) => {
     try {
         const { mobile, admission_id } = req.body;
@@ -181,7 +181,7 @@ exports.sendOtp = async (req, res) => {
     }
 };
 
-// 4. Verify OTP, generate slip, emit WebSocket event
+// 4. Verify OTP, generate slip, emit WebSocket event (LEGACY — kept for backward compatibility)
 exports.verifyAndGenerate = async (req, res) => {
     try {
         const { sessionId, otp, mobile, guard_station_id, admission_id, visitor_count = 1 } = req.body;
@@ -277,6 +277,107 @@ exports.verifyAndGenerate = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server Error' });
+    }
+};
+
+// 4b. Generate slip directly (NO OTP) — Primary flow
+exports.generateDirect = async (req, res) => {
+    try {
+        const { mobile, guard_station_id, admission_id, visitor_count = 1 } = req.body;
+
+        if (!mobile || !admission_id) {
+            return res.status(400).json({ error: 'Missing required fields: mobile, admission_id' });
+        }
+
+        // Validate that mobile is authorized for this admission
+        const visitor = await AdmissionVisitor.findOne({
+            where: { admission_id, mobile_number: mobile }
+        });
+
+        if (!visitor) {
+            return res.status(403).json({ error: 'Unauthorized visitor mobile' });
+        }
+
+        // Get admission details
+        const admission = await Admission.findByPk(admission_id, {
+            include: [{ model: Patient, attributes: ['full_name', 'uhid'] }]
+        });
+
+        if (!admission || admission.status !== 'ACTIVE') {
+            return res.status(404).json({ error: 'Active admission not found' });
+        }
+
+        // Check limits (includes visiting hours check)
+        const limitCheck = await checkLimits(admission.patient_id);
+        if (!limitCheck.allowed) {
+            return res.status(400).json({ error: limitCheck.message });
+        }
+
+        const createdSlips = [];
+        const { addHours } = require('date-fns');
+
+        // Generate separate slips (one for each person in visitor_count)
+        for (let i = 0; i < visitor_count; i++) {
+            const slipModel = await generateSlip(admission.patient_id, null, mobile, 1);
+
+            // If this is at a guard station, activate it immediately
+            if (guard_station_id) {
+                const durationHours = admission.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                slipModel.status = 'VISITING';
+                slipModel.scanned_count = 1;
+                slipModel.valid_until = addHours(new Date(), durationHours);
+                await slipModel.save();
+            }
+
+            createdSlips.push(slipModel);
+        }
+
+        // Mask mobile: 98****3210
+        const maskedMobile = mobile.slice(0, 2) + '****' + mobile.slice(-4);
+
+        // Emit WebSocket event to guard station
+        const io = req.app.get('io');
+        if (io && guard_station_id) {
+            io.to(`guard:${guard_station_id}`).emit('VISITOR_AUTH_SUCCESS', {
+                patient_name: admission.Patient.full_name,
+                room_number: admission.room_number,
+                bed_number: admission.bed_number,
+                masked_mobile: maskedMobile,
+                slip_id: createdSlips.map(s => s.id.split('-')[0]).join(', '),
+                ward_type: admission.ward_type,
+                visitor_count: visitor_count,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        await AuditLog.create({
+            action: 'VISITOR_AUTHENTICATED',
+            details: `Visitor ${maskedMobile} (${visitor_count} person(s)) verified directly for patient ${admission.Patient.full_name}. Slips: ${createdSlips.map(s => s.slip_token).join(', ')}`,
+            ip_address: req.ip
+        });
+
+        const formattedSlips = createdSlips.map(s => ({
+            id: s.id.split('-')[0],
+            slip_token: s.slip_token,
+            ward_type: s.ward_type,
+            valid_until: s.valid_until,
+            patient_name: admission.Patient.full_name,
+            room_number: admission.room_number,
+            bed_number: admission.bed_number,
+            visitor_count: 1
+        }));
+
+        res.json({
+            success: true,
+            slips: formattedSlips,
+            slip: {
+                ...formattedSlips[0],
+                visitor_count: visitor_count
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to generate visitor pass' });
     }
 };
 

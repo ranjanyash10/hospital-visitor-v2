@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
-import { Smartphone, Search, User, Users, Building2, Activity, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, Loader2, Shield, Send, ArrowLeft, Clock } from 'lucide-react';
+import { Smartphone, Search, User, Users, Building2, Activity, ChevronRight, ChevronLeft, AlertCircle, CheckCircle2, Loader2, Shield, ArrowLeft, Clock, TicketCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 
 const VisitorPortal = () => {
@@ -9,7 +9,7 @@ const VisitorPortal = () => {
     const navigate = useNavigate();
     const qrToken = searchParams.get('token');
 
-    const [step, setStep] = useState('VALIDATING'); // VALIDATING → MOBILE → PATIENTS → OTP → VISITOR_COUNT → SLIP
+    const [step, setStep] = useState('VALIDATING'); // VALIDATING → MOBILE → PATIENTS → VISITOR_COUNT → SLIP (no OTP)
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
 
@@ -17,17 +17,13 @@ const VisitorPortal = () => {
     const [mobile, setMobile] = useState('');
     const [patients, setPatients] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
-    const [sessionId, setSessionId] = useState(null);
     const [admissionId, setAdmissionId] = useState(null);
-    const [otp, setOtp] = useState(['', '', '', '']);
     const [slip, setSlip] = useState(null);
     const [slips, setSlips] = useState([]);
     const [currentPassIndex, setCurrentPassIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState(0);
     const [visitorCount, setVisitorCount] = useState(1);
     const [maxSlots, setMaxSlots] = useState(1);
-
-    const otpRefs = [useRef(), useRef(), useRef(), useRef()];
 
     // Step 1: Validate QR token
     useEffect(() => {
@@ -74,60 +70,13 @@ const VisitorPortal = () => {
         }
     };
 
-    // Step 3: Send OTP
-    const handleSendOtp = async () => {
+    // Step 3: Generate pass directly (no OTP)
+    const handleGeneratePass = async () => {
         if (!selectedPatient) return;
         setLoading(true);
         setError(null);
         try {
-            const res = await api.post('/visitor/send-otp', {
-                mobile,
-                admission_id: selectedPatient.admission_id
-            });
-            setSessionId(res.data.sessionId);
             setAdmissionId(selectedPatient.admission_id);
-            setStep('OTP');
-            setTimeLeft(300);
-        } catch (err) {
-            setError(err.response?.data?.error || 'Failed to send OTP');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // OTP countdown
-    useEffect(() => {
-        if (step !== 'OTP' || timeLeft <= 0) return;
-        const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
-        return () => clearInterval(timer);
-    }, [step, timeLeft]);
-
-    // OTP input handling
-    const handleOtpChange = (index, value) => {
-        if (!/^[0-9]?$/.test(value)) return;
-        const newOtp = [...otp];
-        newOtp[index] = value;
-        setOtp(newOtp);
-        if (value && index < 3) otpRefs[index + 1].current?.focus();
-    };
-
-    const handleOtpKeyDown = (index, e) => {
-        if (e.key === 'Backspace' && !otp[index] && index > 0) {
-            otpRefs[index - 1].current?.focus();
-        }
-    };
-
-    // Step 4: Verify OTP
-    const handleVerifyOtp = async () => {
-        const fullOtp = otp.join('');
-        if (fullOtp.length !== 4) {
-            setError('Enter the complete 4-digit OTP');
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            // First verify the OTP
             const remaining = selectedPatient?.remaining_slots || 1;
             const maxV = selectedPatient?.max_visitors || 1;
 
@@ -138,27 +87,24 @@ const VisitorPortal = () => {
                 setStep('VISITOR_COUNT');
             } else {
                 // Single visitor — generate slip directly
-                await generateSlipWithCount(1, fullOtp);
+                await generateSlipDirect(1);
             }
         } catch (err) {
-            setError(err.response?.data?.error || 'Verification failed');
+            setError(err.response?.data?.error || 'Failed to generate pass');
         } finally {
             setLoading(false);
         }
     };
 
-    // Step 4b: Generate slip with visitor count
-    const generateSlipWithCount = async (count, otpCode) => {
-        const fullOtp = otpCode || otp.join('');
+    // Generate slip directly via the no-OTP endpoint
+    const generateSlipDirect = async (count) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await api.post('/visitor/verify-otp', {
-                sessionId,
-                otp: fullOtp,
+            const res = await api.post('/visitor/generate-direct', {
                 mobile,
                 guard_station_id: guardStationId,
-                admission_id: admissionId,
+                admission_id: admissionId || selectedPatient?.admission_id,
                 visitor_count: count
             });
             setSlip(res.data.slip);
@@ -166,7 +112,7 @@ const VisitorPortal = () => {
             setCurrentPassIndex(0);
             setStep('SLIP');
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to generate slip');
+            setError(err.response?.data?.error || 'Failed to generate pass');
         } finally {
             setLoading(false);
         }
@@ -363,60 +309,17 @@ const VisitorPortal = () => {
                             )}
 
                             <button
-                                onClick={handleSendOtp}
+                                onClick={handleGeneratePass}
                                 disabled={loading || !selectedPatient || (selectedPatient && !selectedPatient.visiting_allowed)}
                                 className="w-full h-14 mt-5 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
                             >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <><Send size={16} /> Send OTP</>}
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : <><TicketCheck size={16} /> Generate Pass</>}
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* STEP: OTP */}
-                {step === 'OTP' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-white rounded-3xl shadow-lg shadow-slate-200/50 p-6">
-                            <div className="text-center mb-6">
-                                <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">Verify OTP</h2>
-                                <p className="text-slate-400 text-xs mt-1.5 font-medium">
-                                    Code sent to •••••• {mobile.slice(-4)}
-                                </p>
-                            </div>
-
-                            <div className="flex justify-center gap-3 mb-6">
-                                {otp.map((digit, i) => (
-                                    <input
-                                        key={i}
-                                        ref={otpRefs[i]}
-                                        type="tel"
-                                        maxLength="1"
-                                        value={digit}
-                                        onChange={e => handleOtpChange(i, e.target.value)}
-                                        onKeyDown={e => handleOtpKeyDown(i, e)}
-                                        className="w-14 h-16 text-center text-2xl font-bold bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-brand-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                                        autoFocus={i === 0}
-                                    />
-                                ))}
-                            </div>
-
-                            {timeLeft > 0 && (
-                                <p className="text-center text-xs text-slate-400 font-semibold mb-4">
-                                    Expires in {formatTime(timeLeft)}
-                                </p>
-                            )}
-
-                            <button
-                                onClick={handleVerifyOtp}
-                                disabled={loading || otp.join('').length !== 4}
-                                className="w-full h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
-                            >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : <><CheckCircle2 size={16} /> Verify & Generate Slip</>}
-                            </button>
-                        </div>
-                    </div>
-                )
-                }
+                {/* OTP step removed — visitors go directly to pass generation */}
 
                 {/* STEP: VISITOR_COUNT */}
                 {
@@ -457,7 +360,7 @@ const VisitorPortal = () => {
                                 )}
 
                                 <button
-                                    onClick={() => generateSlipWithCount(visitorCount)}
+                                    onClick={() => generateSlipDirect(visitorCount)}
                                     disabled={loading}
                                     className="w-full h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-3 disabled:opacity-40 transition-all shadow-lg shadow-brand-500/20"
                                 >
