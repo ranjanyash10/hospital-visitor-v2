@@ -98,6 +98,64 @@ const parseGender = (genderStr) => {
 };
 
 /**
+ * Helper to determine official ward category from HIS ward name, bed number, and billing category.
+ */
+const determineWardCategory = (wardStr, bedStr, billingStr) => {
+    const ward = (wardStr || '').toUpperCase();
+    const bed = (bedStr || '').toUpperCase();
+    const billing = (billingStr || '').toUpperCase();
+
+    if (ward.includes('NEURO-ICU') || ward.includes('NEURO ICU')) {
+        return 'NEURO_ICU';
+    }
+    if (ward.includes('SICU') || ward.includes('SURGICAL ICU')) {
+        return 'SURGICAL_ICU';
+    }
+    if (ward.includes('NEPHRO ICU') || ward.includes('NEPHRO-ICU')) {
+        return 'NEPHRO_ICU';
+    }
+    if (ward.includes('NICU') || ward.includes('NURSERY')) {
+        return 'NICU';
+    }
+    if (ward.includes('PICU') || ward.includes('PEAD ICU')) {
+        return 'NICU'; // Map PICU/PEAD to NICU timings for child care units
+    }
+    if (ward.includes('MICU') || ward.includes('MEDICAL ICU')) {
+        const match = bed.match(/\d+/);
+        if (match) {
+            const bedNum = parseInt(match[0], 10);
+            if (bedNum >= 12 && bedNum <= 23) {
+                return 'MEDICAL_ICU_12_23';
+            }
+        }
+        return 'MEDICAL_ICU_1_11';
+    }
+    if (ward.includes('HC') || ward.includes('CATH R/R') || ward.includes('CATH RR') || ward.includes('CCU')) {
+        return 'HEART_COMMAND';
+    }
+    if (ward.includes('ICU-II') || ward.includes('ICU-2') || ward.includes('ICU II')) {
+        return 'ICU_2';
+    }
+    if (ward.includes('ICU-III') || ward.includes('ICU-3') || ward.includes('ICU III') || ward.includes('SW-ICU')) {
+        return 'ICU_3';
+    }
+
+    // Check if Private Suite based on bed prefix or billing category
+    if (
+        bed.startsWith('PVT') || 
+        bed.startsWith('DLX') || 
+        bed.startsWith('DLS') || 
+        billing.includes('PRIVATE') || 
+        billing.includes('DELUXE') || 
+        billing.includes('SUITE')
+    ) {
+        return 'PRIVATE';
+    }
+
+    return 'GENERAL';
+};
+
+/**
  * Map a raw HIS record to our internal format.
  * Supports various naming casings (snake_case, camelCase, PascalCase) and Sri Balaji HIS specific fields.
  */
@@ -108,7 +166,7 @@ const mapHISRecord = (record) => {
         full_name: (record.PatientName || record.patientName || record.fullName || record.FullName || record.name || record.Name || '').trim(),
         gender,
         ward_type: record.Ward || record.WardType || record.wardType || record.ward_type || 'GENERAL',
-        ward_category: record.WardCategory || record.wardCategory || record.ward_category || 'WARD',
+        ward_category: determineWardCategory(record.Ward, record.BedNo, record.BillingCategory),
         room_number: record.RoomNo || record.roomNo || record.roomNumber || record.RoomNumber || '—',
         bed_number: record.BedNo || record.bedNo || record.bedNumber || record.BedNumber || '—',
         relative_name: record.GuardianName || record.RelativeName || record.relativeName || record.relative_name || 'Relative',
