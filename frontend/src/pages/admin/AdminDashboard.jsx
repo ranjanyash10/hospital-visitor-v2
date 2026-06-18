@@ -842,7 +842,7 @@ const AdminDashboard = () => {
                                         {p.room_number && p.room_number !== '-' && p.room_number !== '—' && p.room_number.trim() !== '' && (
                                             <span className="px-2 py-0.5 bg-brand-50 text-brand-500 text-[10px] md:text-[11px] font-bold rounded uppercase border border-brand-100">R-{p.room_number}</span>
                                         )}
-                                        <span className={`${p.room_number && p.room_number !== '-' && p.room_number !== '—' && p.room_number.trim() !== '' ? 'ml-1.5' : ''} px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] md:text-[11px] font-bold rounded uppercase border border-slate-200`}>B-{p.bed_number}</span>
+                                        <span className={`${p.room_number && p.room_number !== '-' && p.room_number !== '—' && p.room_number.trim() !== '' ? 'ml-1.5' : ''} px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] md:text-[11px] font-bold rounded uppercase border border-slate-200`}>{p.ward_type ? `${p.ward_type} - ` : ''}B-{p.bed_number}</span>
                                         {p.ward_category && p.ward_category !== 'WARD' && p.ward_category !== 'GENERAL' && p.ward_category !== 'PRIVATE' && (
                                             <span className="ml-1.5 px-2 py-0.5 bg-red-50 text-red-600 text-[10px] md:text-[11px] font-bold rounded uppercase border border-red-100">{p.ward_category.replace(/_/g, ' ')}</span>
                                         )}

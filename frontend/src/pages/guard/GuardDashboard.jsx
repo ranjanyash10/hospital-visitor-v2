@@ -640,7 +640,7 @@ const GuardDashboard = () => {
                                                             <td className="px-4 py-3">
                                                                 <div className="flex flex-col">
                                                                     <p className="text-[14px] font-black text-brand-600 leading-none">
-                                                                        B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
+                                                                        {slip.ward_type ? `${slip.ward_type} - ` : ''}B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
                                                                     </p>
                                                                     <p className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
                                                                         RM_{slip.Patient?.Admissions?.[0]?.room_number || slip.room_number || '---'}
