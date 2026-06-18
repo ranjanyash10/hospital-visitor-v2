@@ -173,7 +173,7 @@ const VisitorSlip = sequelize.define('VisitorSlip', {
         type: DataTypes.TEXT
     },
     expiryReason: {
-        type: DataTypes.ENUM('CHECKOUT', 'AUTO_TIMEOUT', 'REVOKED'),
+        type: DataTypes.STRING(30),
         allowNull: true
     },
     mobile_number: {
