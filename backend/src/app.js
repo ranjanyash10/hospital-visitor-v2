@@ -33,6 +33,7 @@ const normalizeUrl = (url) => url ? url.replace(/\/$/, '') : null;
 const allowedOrigins = [
     normalizeUrl(process.env.CORS_ORIGIN),
     'https://lobster-app-enwcv.ondigitalocean.app',
+    'https://visitormanagement-v5r4l.ondigitalocean.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5000',
