@@ -42,7 +42,8 @@ const GuardDashboard = () => {
     const [showPanel, setShowPanel] = useState(false);
 
     // Active visitors
-    const [activeVisitors, setActiveVisitors] = useState([]);
+    const [allSlips, setAllSlips] = useState([]);
+    const [statusFilter, setStatusFilter] = useState('VISITING');
     const lastSeenSlipIdRef = useRef(null);
 
     // Clock
@@ -158,10 +159,9 @@ const GuardDashboard = () => {
     // --- 4b. Active Visitors ---
     const fetchActiveVisitors = useCallback(async () => {
         try {
-            const res = await api.get('/guard/slips?limit=50');
+            const res = await api.get('/guard/slips?limit=100');
             const all = res.data.slips || res.data || [];
-            const active = all.filter(s => s.status === 'VISITING');
-            setActiveVisitors(active);
+            setAllSlips(all);
         } catch (err) {
             console.error('Failed to fetch active visitors:', err);
         }
@@ -474,6 +474,19 @@ const GuardDashboard = () => {
         );
     }
 
+    const filteredSlips = allSlips.filter(s => {
+        if (statusFilter === 'VISITING') {
+            return s.status === 'VISITING';
+        }
+        if (statusFilter === 'EXPIRED') {
+            return s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT';
+        }
+        if (statusFilter === 'CHECKED_OUT') {
+            return s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT';
+        }
+        return false;
+    });
+
     // --- RENDER: QR MODE ---
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -594,10 +607,10 @@ const GuardDashboard = () => {
 
                             {/* Active Visitors Dashboard */}
                             <div className="mt-8 w-full max-w-2xl">
-                                <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
                                         <Users size={16} className="text-brand-500" />
-                                        Active Visitors Inside
+                                        Visitor Registry
                                     </h3>
                                     <button
                                         onClick={fetchActiveVisitors}
@@ -606,11 +619,34 @@ const GuardDashboard = () => {
                                         <RefreshCw size={10} /> Refresh
                                     </button>
                                 </div>
+
+                                {/* Status Filters Tab Bar */}
+                                <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-2xl">
+                                    <button
+                                        onClick={() => setStatusFilter('VISITING')}
+                                        className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'VISITING' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Visiting ({allSlips.filter(s => s.status === 'VISITING').length})
+                                    </button>
+                                    <button
+                                        onClick={() => setStatusFilter('EXPIRED')}
+                                        className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'EXPIRED' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Expired ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT').length})
+                                    </button>
+                                    <button
+                                        onClick={() => setStatusFilter('CHECKED_OUT')}
+                                        className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'CHECKED_OUT' ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Checked Out ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT').length})
+                                    </button>
+                                </div>
+
                                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                    {activeVisitors.length === 0 ? (
-                                        <div className="py-8 text-center">
+                                    {filteredSlips.length === 0 ? (
+                                        <div className="py-12 text-center">
                                             <Users size={32} className="text-slate-200 mx-auto mb-2" />
-                                            <p className="text-xs text-slate-400 font-semibold">No active visitors right now</p>
+                                            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">No matching visitors found</p>
                                         </div>
                                     ) : (
                                         <div className="overflow-x-auto">
@@ -620,14 +656,16 @@ const GuardDashboard = () => {
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Visitor</th>
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Patient</th>
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Bed / Room</th>
-                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Zone / Ward</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Ward</th>
 
-                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Check-in</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                                                            {statusFilter === 'VISITING' ? 'Check-in' : 'Check-in / Out'}
+                                                        </th>
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {activeVisitors.map((slip, i) => (
+                                                    {filteredSlips.map((slip, i) => (
                                                         <tr key={slip.id} className={`border-b border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-brand-50/50 transition-colors`}>
                                                             <td className="px-4 py-4.5">
                                                                 <p className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{slip.Relative?.name || slip.visitor_name || 'GUEST'}</p>
@@ -648,41 +686,46 @@ const GuardDashboard = () => {
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-4.5 whitespace-nowrap">
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[14px] font-black text-slate-800 uppercase tracking-tight">
-                                                                        {slip.ward_category?.replace(/_/g, ' ') || slip.ward_type || 'General'}
-                                                                    </span>
-                                                                    <span className="text-[10px] font-bold text-slate-500 mt-0.5 uppercase tracking-tighter">
-                                                                        {slip.ward_type || 'WARD'}
-                                                                    </span>
-                                                                </div>
+                                                                <span className="text-[14px] font-black text-slate-800 uppercase tracking-tight">
+                                                                    {slip.ward_type || 'WARD'}
+                                                                </span>
                                                             </td>
 
                                                             <td className="px-4 py-4.5">
                                                                 <p className="text-[14px] font-black text-slate-800 tabular-nums">
                                                                     {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : '—'}
                                                                 </p>
-                                                                {slip.valid_until && new Date() > new Date(slip.valid_until) && (
-                                                                    <span className="mt-1.5 px-2 py-0.5 bg-red-100 text-red-700 text-[9px] font-black rounded uppercase border border-red-200">
-                                                                        Expired
-                                                                    </span>
+                                                                {statusFilter !== 'VISITING' && slip.updatedAt && (
+                                                                    <p className="text-[11px] font-bold text-slate-400 mt-1.5 tabular-nums">
+                                                                        → {format(new Date(slip.updatedAt), 'HH:mm')}
+                                                                    </p>
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-4.5 text-right">
-                                                                <div className="flex flex-col gap-1.5 items-end">
-                                                                    <button
-                                                                        onClick={() => handleCheckout(slip.id)}
-                                                                        className="px-4 py-1.5 bg-brand-50 text-brand-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-brand-500 hover:text-white transition-all shadow-sm border border-brand-100"
-                                                                    >
-                                                                        Exit
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleCheckout(slip.id, true)}
-                                                                        className="px-4 py-1.5 bg-red-50 text-red-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100"
-                                                                    >
-                                                                        Force Remove
-                                                                    </button>
-                                                                </div>
+                                                                {statusFilter === 'VISITING' ? (
+                                                                    <div className="flex flex-col gap-1.5 items-end">
+                                                                        <button
+                                                                            onClick={() => handleCheckout(slip.id)}
+                                                                            className="px-4 py-1.5 bg-brand-50 text-brand-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-brand-500 hover:text-white transition-all shadow-sm border border-brand-100"
+                                                                        >
+                                                                            Exit
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleCheckout(slip.id, true)}
+                                                                            className="px-4 py-1.5 bg-red-50 text-red-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100"
+                                                                        >
+                                                                            Force Remove
+                                                                        </button>
+                                                                    </div>
+                                                                ) : statusFilter === 'EXPIRED' ? (
+                                                                    <span className="inline-block px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl text-[11px] font-black uppercase border border-amber-100">
+                                                                        Timed Out
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-block px-3 py-1.5 bg-slate-50 text-slate-500 rounded-xl text-[11px] font-black uppercase border border-slate-200">
+                                                                        Checked Out
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     ))}
