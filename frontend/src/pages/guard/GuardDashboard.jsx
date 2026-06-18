@@ -655,7 +655,8 @@ const GuardDashboard = () => {
                                                     <tr className="bg-slate-50 border-b border-slate-100">
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Visitor</th>
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Patient</th>
-                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Bed / Room</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">UHID</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Bed</th>
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Ward</th>
 
                                                         <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">
@@ -673,17 +674,14 @@ const GuardDashboard = () => {
                                                             </td>
                                                             <td className="px-4 py-4.5">
                                                                 <p className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{slip.Patient?.full_name || '—'}</p>
-                                                                <p className="text-[11px] font-mono text-slate-500 mt-0.5">{slip.Patient?.uhid || ''}</p>
                                                             </td>
                                                             <td className="px-4 py-4.5">
-                                                                <div className="flex flex-col">
-                                                                    <p className="text-[16px] font-black text-brand-600 leading-none">
-                                                                        {slip.ward_type ? `${slip.ward_type} - ` : ''}B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
-                                                                    </p>
-                                                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">
-                                                                        RM_{slip.Patient?.Admissions?.[0]?.room_number || slip.room_number || '---'}
-                                                                    </p>
-                                                                </div>
+                                                                <p className="text-[15px] font-black text-slate-800 font-mono tracking-tight">{slip.Patient?.uhid || '—'}</p>
+                                                            </td>
+                                                            <td className="px-4 py-4.5">
+                                                                <span className="text-[16px] font-black text-brand-600">
+                                                                    B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
+                                                                </span>
                                                             </td>
                                                             <td className="px-4 py-4.5 whitespace-nowrap">
                                                                 <span className="text-[14px] font-black text-slate-800 uppercase tracking-tight">
