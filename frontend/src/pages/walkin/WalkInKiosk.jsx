@@ -388,7 +388,9 @@ const WalkInKiosk = () => {
                                     <div className="text-center">
                                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-2 italic leading-none">Location</p>
                                         <p className="text-xs font-black text-brand-500 font-outfit uppercase leading-none">
-                                            R-{patientInfo?.room_number} / B-{patientInfo?.bed_number}
+                                            {patientInfo?.room_number && patientInfo.room_number !== '-' && patientInfo.room_number !== '—' && patientInfo.room_number.trim() !== ''
+                                                ? `R-${patientInfo.room_number} / `
+                                                : ''}B-{patientInfo?.bed_number}
                                         </p>
                                     </div>
                                 </div>
