@@ -25,7 +25,7 @@ exports.lookupPatient = async (req, res) => {
             where: {
                 [Op.or]: [
                     { uhid: searchTerm.toUpperCase() },
-                    { full_name: { [Op.like]: `%${searchTerm}%` } }
+                    { full_name: { [Op.iLike]: `%${searchTerm}%` } }
                 ]
             },
             include: [{
