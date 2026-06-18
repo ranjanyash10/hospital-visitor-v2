@@ -617,68 +617,68 @@ const GuardDashboard = () => {
                                             <table className="w-full text-left min-w-[500px]">
                                                 <thead>
                                                     <tr className="bg-slate-50 border-b border-slate-100">
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Visitor</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Patient</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Bed / Room</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Zone / Ward</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Visitor</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Patient</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Bed / Room</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Zone / Ward</th>
 
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider">Check-in</th>
-                                                        <th className="px-4 py-2.5 text-[9px] font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider">Check-in</th>
+                                                        <th className="px-4 py-3 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {activeVisitors.map((slip, i) => (
                                                         <tr key={slip.id} className={`border-b border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-brand-50/50 transition-colors`}>
-                                                            <td className="px-4 py-3">
-                                                                <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{slip.Relative?.name || slip.visitor_name || 'GUEST'}</p>
-                                                                <p className="text-[9px] text-slate-400 font-mono tracking-tighter">{slip.Relative?.mobile_number || ''}</p>
+                                                            <td className="px-4 py-4.5">
+                                                                <p className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{slip.Relative?.name || slip.visitor_name || 'GUEST'}</p>
+                                                                <p className="text-[11px] text-slate-500 font-mono tracking-tighter mt-0.5">{slip.Relative?.mobile_number || ''}</p>
                                                             </td>
-                                                            <td className="px-4 py-3">
-                                                                <p className="text-xs font-bold text-slate-800 uppercase tracking-tight">{slip.Patient?.full_name || '—'}</p>
-                                                                <p className="text-[8px] font-mono text-slate-400">{slip.Patient?.uhid || ''}</p>
+                                                            <td className="px-4 py-4.5">
+                                                                <p className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{slip.Patient?.full_name || '—'}</p>
+                                                                <p className="text-[11px] font-mono text-slate-500 mt-0.5">{slip.Patient?.uhid || ''}</p>
                                                             </td>
-                                                            <td className="px-4 py-3">
+                                                            <td className="px-4 py-4.5">
                                                                 <div className="flex flex-col">
-                                                                    <p className="text-[14px] font-black text-brand-600 leading-none">
+                                                                    <p className="text-[16px] font-black text-brand-600 leading-none">
                                                                         {slip.ward_type ? `${slip.ward_type} - ` : ''}B_{slip.Patient?.Admissions?.[0]?.bed_number || slip.bed_number || '??'}
                                                                     </p>
-                                                                    <p className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">
+                                                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">
                                                                         RM_{slip.Patient?.Admissions?.[0]?.room_number || slip.room_number || '---'}
                                                                     </p>
                                                                 </div>
                                                             </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                            <td className="px-4 py-4.5 whitespace-nowrap">
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-tight">
+                                                                    <span className="text-[14px] font-black text-slate-800 uppercase tracking-tight">
                                                                         {slip.ward_category?.replace(/_/g, ' ') || slip.ward_type || 'General'}
                                                                     </span>
-                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+                                                                    <span className="text-[10px] font-bold text-slate-500 mt-0.5 uppercase tracking-tighter">
                                                                         {slip.ward_type || 'WARD'}
                                                                     </span>
                                                                 </div>
                                                             </td>
 
-                                                            <td className="px-4 py-3">
-                                                                <p className="text-[10px] font-bold text-slate-500 tabular-nums">
+                                                            <td className="px-4 py-4.5">
+                                                                <p className="text-[14px] font-black text-slate-800 tabular-nums">
                                                                     {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : '—'}
                                                                 </p>
                                                                 {slip.valid_until && new Date() > new Date(slip.valid_until) && (
-                                                                    <span className="mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[8px] font-black rounded uppercase border border-red-200">
+                                                                    <span className="mt-1.5 px-2 py-0.5 bg-red-100 text-red-700 text-[9px] font-black rounded uppercase border border-red-200">
                                                                         Expired
                                                                     </span>
                                                                 )}
                                                             </td>
-                                                            <td className="px-4 py-3 text-right">
-                                                                <div className="flex flex-col gap-1 items-end">
+                                                            <td className="px-4 py-4.5 text-right">
+                                                                <div className="flex flex-col gap-1.5 items-end">
                                                                     <button
                                                                         onClick={() => handleCheckout(slip.id)}
-                                                                        className="px-3 py-1 bg-brand-50 text-brand-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-brand-500 hover:text-white transition-all shadow-sm border border-brand-100"
+                                                                        className="px-4 py-1.5 bg-brand-50 text-brand-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-brand-500 hover:text-white transition-all shadow-sm border border-brand-100"
                                                                     >
                                                                         Exit
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleCheckout(slip.id, true)}
-                                                                        className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100"
+                                                                        className="px-4 py-1.5 bg-red-50 text-red-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100"
                                                                     >
                                                                         Force Remove
                                                                     </button>
@@ -709,12 +709,12 @@ const GuardDashboard = () => {
                             {slips.length === 0 ? (
                                 <p className="text-xs text-slate-400 text-center py-8">No slips today</p>
                             ) : slips.map(slip => (
-                                <div key={slip.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-bold text-slate-700">
+                                <div key={slip.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight">
                                             {slip.Patient?.full_name || 'Unknown'}
                                         </span>
-                                        <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${slip.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
+                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${slip.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
                                             slip.status === 'VISITING' ? 'bg-brand-100 text-brand-700' :
                                                 slip.status === 'EXPIRED' ? 'bg-slate-100 text-slate-500' :
                                                     'bg-red-100 text-red-700'
@@ -723,8 +723,8 @@ const GuardDashboard = () => {
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[9px] text-slate-400 font-mono">{slip.slip_token}</span>
-                                        <span className="text-[9px] text-slate-400">
+                                        <span className="text-[11px] text-slate-500 font-mono tracking-tighter">{slip.slip_token}</span>
+                                        <span className="text-[11px] text-slate-500 font-bold tabular-nums">
                                             {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : ''}
                                         </span>
                                     </div>
