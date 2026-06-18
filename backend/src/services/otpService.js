@@ -23,6 +23,15 @@ const formatToE164 = (mobile) => {
     return mobile.startsWith('+') ? mobile : `+${mobile}`;
 };
 
+// Safe log writer to prevent crashes if writing is blocked by permissions (e.g. in read-only containers)
+const writeDebugLog = (msg) => {
+    try {
+        fs.appendFileSync(path.join(__dirname, '../../twilio_debug.log'), msg);
+    } catch (error) {
+        console.warn(`[TWILIO LOG WARNING] Could not write to twilio_debug.log: ${error.message}`);
+    }
+};
+
 // Real WhatsApp Sender using Twilio
 const sendSMS = async (mobile, message) => {
     try {
@@ -37,7 +46,7 @@ const sendSMS = async (mobile, message) => {
         const from = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
 
         const debugMsg = `[${new Date().toISOString()}] [TWILIO DEBUG] Attempting Dispatch -> From: ${from} | To: ${to} | Message: ${message}\n`;
-        fs.appendFileSync(path.join(__dirname, '../../twilio_debug.log'), debugMsg);
+        writeDebugLog(debugMsg);
 
         const response = await client.messages.create({
             body: message,
@@ -46,7 +55,7 @@ const sendSMS = async (mobile, message) => {
         });
 
         const successMsg = `[${new Date().toISOString()}] [TWILIO SUCCESS] SID: ${response.sid}\n`;
-        fs.appendFileSync(path.join(__dirname, '../../twilio_debug.log'), successMsg);
+        writeDebugLog(successMsg);
 
         console.log(`[TWILIO SUCCESS] SID: ${response.sid} | To: ${to}`);
         return true;
@@ -55,7 +64,7 @@ const sendSMS = async (mobile, message) => {
         if (error.code === 63015) {
             errorDesc += `[TIP] This error means the recipient (+919142577780) has not joined the Twilio Sandbox. They must send "join <your-sandbox-word>" to +1 415 523 8886.\n`;
         }
-        fs.appendFileSync(path.join(__dirname, '../../twilio_debug.log'), errorDesc);
+        writeDebugLog(errorDesc);
 
         console.error(`[TWILIO ERROR] Status: ${error.status} | Code: ${error.code} | Message: ${error.message}`);
         // Fallback to mock log so system doesn't crash if Twilio fails
