@@ -88,13 +88,22 @@ const WARD_CATEGORIES = [
     { key: 'PRIVATE', label: 'Private Suite' }
 ];
 
+// Helper to get current date/time mapped to India Standard Time (IST)
+const getISTDate = () => {
+    const now = new Date();
+    // Convert current server time to India Standard Time (IST) string, then parse it
+    // so we get a Date object whose fields match the actual IST timezone.
+    const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    return new Date(istString);
+};
+
 /**
  * Parse a "HH:MM" string into a Date object for today.
  */
-const parseTime = (timeStr) => {
+const parseTime = (timeStr, baseDate) => {
     const [h, m] = timeStr.split(':').map(Number);
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    const refDate = baseDate || getISTDate();
+    return new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate(), h, m, 0, 0);
 };
 
 /**
@@ -115,8 +124,7 @@ const formatTimeDisplay = (timeStr) => {
  */
 const getActiveVisitingWindow = (category) => {
     const schedule = VISITING_SCHEDULE[category] || VISITING_SCHEDULE['WARD'];
-    const now = new Date();
-
+    
     // Developer bypass for testing at any time
     if (process.env.BYPASS_VISITING_HOURS === 'true') {
         return {
@@ -129,10 +137,12 @@ const getActiveVisitingWindow = (category) => {
         };
     }
 
-    const morningFrom = parseTime(schedule.morning.from);
-    const morningTo = parseTime(schedule.morning.to);
-    const eveningFrom = parseTime(schedule.evening.from);
-    const eveningTo = parseTime(schedule.evening.to);
+    const now = getISTDate();
+
+    const morningFrom = parseTime(schedule.morning.from, now);
+    const morningTo = parseTime(schedule.morning.to, now);
+    const eveningFrom = parseTime(schedule.evening.from, now);
+    const eveningTo = parseTime(schedule.evening.to, now);
 
     // Check morning window
     if (now >= morningFrom && now <= morningTo) {
