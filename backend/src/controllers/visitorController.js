@@ -3,7 +3,7 @@ const { Patient, Admission, AdmissionVisitor, VisitorSlip, KioskSession, GuardSe
 const { sendOtpToRelative, verifyOtp } = require('../services/otpService');
 const { generateSlip, checkLimits } = require('../services/slipService');
 const { addMinutes } = require('date-fns');
-const { getActiveVisitingWindow } = require('../config/visitingSchedule');
+const { getActiveVisitingWindow, getStartOfTodayIST } = require('../config/visitingSchedule');
 
 // 1. Validate QR token from guard station
 exports.validateQR = async (req, res) => {
@@ -402,7 +402,6 @@ exports.getFormInfo = async (req, res) => {
 
         // Calculate actual remaining slots based on limits
         const { checkLimits } = require('../services/slipService');
-        const { subHours } = require('date-fns');
         const { Op } = require('sequelize');
 
         let remaining_slots = 0;
@@ -411,12 +410,12 @@ exports.getFormInfo = async (req, res) => {
             if (limits.allowed) {
                 const DAILY_LIMITS = { GENERAL: 2, PRIVATE: 3 };
                 const dailyLimit = DAILY_LIMITS[admission.ward_type] || 2;
-                const oneDayAgo = subHours(new Date(), 24);
+                const startOfToday = getStartOfTodayIST();
                 
                 const dailyCount = await VisitorSlip.count({
                     where: {
                         patient_id: patient.id,
-                        createdAt: { [Op.gt]: oneDayAgo },
+                        createdAt: { [Op.gte]: startOfToday },
                         status: { [Op.ne]: 'REVOKED' }
                     }
                 });
@@ -499,7 +498,6 @@ exports.preRegister = async (req, res) => {
 
         // 2. Strict Limit Check
         const { checkLimits } = require('../services/slipService');
-        const { subHours } = require('date-fns');
         const { Op } = require('sequelize');
 
         const limitCheck = await checkLimits(patient.id);
@@ -510,12 +508,12 @@ exports.preRegister = async (req, res) => {
         // Calculate actual slots left under daily limit
         const DAILY_LIMITS = { GENERAL: 2, PRIVATE: 3 };
         const dailyLimit = DAILY_LIMITS[admission.ward_type] || 2;
-        const oneDayAgo = subHours(new Date(), 24);
+        const startOfToday = getStartOfTodayIST();
         
         const dailyCount = await VisitorSlip.count({
             where: {
                 patient_id: patient.id,
-                createdAt: { [Op.gt]: oneDayAgo },
+                createdAt: { [Op.gte]: startOfToday },
                 status: { [Op.ne]: 'REVOKED' }
             }
         });

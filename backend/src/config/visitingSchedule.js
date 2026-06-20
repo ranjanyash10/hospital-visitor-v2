@@ -201,10 +201,27 @@ const getActiveVisitingWindow = (category) => {
     };
 };
 
+const getStartOfTodayIST = () => {
+    const now = new Date();
+    // Shift by 5.5 hours to get the current date/time in IST timezone
+    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    // Get midnight in IST timezone representation
+    const startOfTodayIST = new Date(Date.UTC(
+        istTime.getUTCFullYear(),
+        istTime.getUTCMonth(),
+        istTime.getUTCDate(),
+        0, 0, 0, 0
+    ));
+    // Shift back to get the corresponding absolute UTC Date object
+    return new Date(startOfTodayIST.getTime() - (5.5 * 60 * 60 * 1000));
+};
+
 module.exports = {
     VISITING_SCHEDULE,
     WARD_CATEGORIES,
     getActiveVisitingWindow,
     formatTimeDisplay,
-    parseTime
+    parseTime,
+    getStartOfTodayIST
 };
+

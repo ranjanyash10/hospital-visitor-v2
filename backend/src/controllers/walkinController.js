@@ -1,8 +1,7 @@
 const { Patient, Admission, Relative, VisitorSlip, AuditLog, sequelize } = require('../models');
 const { Op } = require('sequelize');
-const { subHours } = require('date-fns');
+const { getActiveVisitingWindow, getStartOfTodayIST } = require('../config/visitingSchedule');
 const crypto = require('crypto');
-const { getActiveVisitingWindow } = require('../config/visitingSchedule');
 
 const DAILY_LIMITS = {
     GENERAL: 2,
@@ -132,11 +131,11 @@ exports.registerWalkIn = async (req, res) => {
         }
 
         // Check daily limit
-        const oneDayAgo = subHours(new Date(), 24);
+        const startOfToday = getStartOfTodayIST();
         const dailyCount = await VisitorSlip.count({
             where: {
                 patient_id,
-                createdAt: { [Op.gt]: oneDayAgo },
+                createdAt: { [Op.gte]: startOfToday },
                 status: { [Op.ne]: 'REVOKED' }
             }
         });
