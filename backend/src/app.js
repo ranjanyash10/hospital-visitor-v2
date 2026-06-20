@@ -137,6 +137,7 @@ const PORT = process.env.PORT || 5000;
 
 const startExpiryJob = require('./jobs/expiryJob');
 const startHISSyncJob = require('./services/hisSyncService');
+const startMorningReminderJob = require('./jobs/morningReminderJob');
 
 // Helper to seed database safely on startup if empty
 const autoSeedIfEmpty = async () => {
@@ -239,6 +240,7 @@ if (require.main === module) {
             
             startExpiryJob();
             startHISSyncJob();
+            startMorningReminderJob();
             server.listen(PORT, () => {
                 console.log(`Server running on port ${PORT}`);
                 console.log(`Socket.io ready on port ${PORT}`);
