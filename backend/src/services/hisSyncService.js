@@ -226,10 +226,14 @@ const autoAdmitPatient = async (data) => {
         return { patient, admission, relative };
     });
 
-    // Trigger WhatsApp (non-blocking)
-    const cleanedMobile = data.mobile_number.replace(/\D/g, '');
-    sendRegistrationLink(cleanedMobile, data.full_name, data.uhid, data.ward_type, data.bed_number, data.ward_category)
-        .catch(err => console.error(`[HIS Sync] WhatsApp failed for ${data.uhid}:`, err.message));
+    // Trigger WhatsApp (non-blocking) - skip if disabled by env to protect quota
+    if (process.env.DISABLE_SYNC_WHATSAPP === 'true') {
+        console.log(`[HIS Sync] WhatsApp notification skipped for ${data.uhid} (DISABLE_SYNC_WHATSAPP is true)`);
+    } else {
+        const cleanedMobile = data.mobile_number.replace(/\D/g, '');
+        sendRegistrationLink(cleanedMobile, data.full_name, data.uhid, data.ward_type, data.bed_number, data.ward_category)
+            .catch(err => console.error(`[HIS Sync] WhatsApp failed for ${data.uhid}:`, err.message));
+    }
 
     console.log(`[HIS Sync] ✅ Auto-Admitted: ${data.full_name} (${data.uhid})`);
     return result;
