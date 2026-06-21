@@ -493,10 +493,10 @@ const GuardDashboard = () => {
             <header className="sticky top-0 z-50 bg-white border-b border-slate-100 px-4 py-3 md:px-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-0">
                     <div className="flex items-center gap-4">
-                        <img src={logo} alt="Sri Balaji Action Medical Institute" className="w-12 h-12 object-contain drop-shadow-md" />
+                        <img src={logo} alt="Sri Balaji Action Medical Institute" className="w-16 h-16 object-contain drop-shadow-md" />
                         <div className="flex flex-col">
-                            <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">Sri Balaji Action</p>
-                            <p className="text-[8px] font-bold text-brand-500 uppercase tracking-[0.25em]">Medical Institute</p>
+                            <p className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight">Sri Balaji Action</p>
+                            <p className="text-[10px] md:text-xs font-black text-brand-500 uppercase tracking-[0.25em] mt-0.5">Medical Institute</p>
                         </div>
                     </div>
 
