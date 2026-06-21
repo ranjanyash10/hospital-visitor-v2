@@ -475,13 +475,13 @@ const GuardDashboard = () => {
 
     const filteredSlips = allSlips.filter(s => {
         if (statusFilter === 'VISITING') {
-            return s.status === 'VISITING';
+            return s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU');
         }
         if (statusFilter === 'EXPIRED') {
-            return s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT';
+            return s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT' && s.scanned_count > 0;
         }
         if (statusFilter === 'CHECKED_OUT') {
-            return s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT';
+            return s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT' && s.scanned_count > 0;
         }
         return false;
     });
@@ -625,19 +625,19 @@ const GuardDashboard = () => {
                                         onClick={() => setStatusFilter('VISITING')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'VISITING' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Visiting ({allSlips.filter(s => s.status === 'VISITING').length})
+                                        Visiting ({allSlips.filter(s => s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU')).length})
                                     </button>
                                     <button
                                         onClick={() => setStatusFilter('EXPIRED')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'EXPIRED' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Expired ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT').length})
+                                        Expired ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
                                     </button>
                                     <button
                                         onClick={() => setStatusFilter('CHECKED_OUT')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'CHECKED_OUT' ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Checked Out ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT').length})
+                                        Checked Out ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
                                     </button>
                                 </div>
 

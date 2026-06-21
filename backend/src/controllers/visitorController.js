@@ -543,7 +543,7 @@ exports.preRegister = async (req, res) => {
                 admission_id: admission.id,
                 mobile_number: visitorMobile,
                 ward_type: admission.ward_type,
-                valid_until: validUntil,
+                valid_until: null,
                 status: 'ACTIVE',
                 qr_code_data: slipToken,
                 visitor_count: 1, // Separate QR for each person

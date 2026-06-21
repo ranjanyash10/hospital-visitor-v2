@@ -78,15 +78,29 @@ exports.verifySlip = async (req, res) => {
             status = 'DENIED';
             reason = 'Slip Revoked by Administration';
         } else if (slip.status === 'EXPIRED' || slip.status === 'USED') {
-            status = 'DENIED';
-            reason = 'Slip already used or expired';
+            if (slip.expiryReason === 'AUTO_TIMEOUT' && slip.scanned_count > 0) {
+                slip.expiryReason = 'REGULAR_EXIT';
+                await slip.save();
+                status = 'EXIT_GRANTED';
+                reason = 'Checkout Successful: Thank you for visiting.';
+            } else {
+                status = 'DENIED';
+                reason = 'Slip already used or expired';
+            }
         } else if (slip.valid_until && isAfter(new Date(), slip.valid_until)) {
-            // Auto-detect expiry on scan
-            status = 'DENIED';
-            reason = 'Slip Expired (Time limit reached)';
-            slip.status = 'EXPIRED';
-            slip.expiryReason = 'TIME_LAPSED';
-            await slip.save();
+            if (slip.status === 'VISITING') {
+                slip.status = 'EXPIRED';
+                slip.expiryReason = 'REGULAR_EXIT';
+                await slip.save();
+                status = 'EXIT_GRANTED';
+                reason = 'Checkout Successful: Thank you for visiting.';
+            } else {
+                status = 'DENIED';
+                reason = 'Slip Expired (Time limit reached)';
+                slip.status = 'EXPIRED';
+                slip.expiryReason = 'TIME_LAPSED';
+                await slip.save();
+            }
         } 
         // 2. EXIT LOGIC (If they are already inside)
         else if (slip.status === 'VISITING') {
@@ -112,18 +126,34 @@ exports.verifySlip = async (req, res) => {
                 status = 'DENIED';
                 reason = `Access Denied: Patient already has ${currentVisitingCount} visitor(s) inside. Max allowed is ${maxAllowed}. Please wait for others to exit.`;
             } else {
-                // First scan: activate the timer now
-                if (!slip.valid_until) {
-                    const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
-                    slip.valid_until = addHours(new Date(), durationHours);
+                if (slip.ward_category === 'ICU') {
+                    if (slip.scanned_count === 0) {
+                        slip.scanned_count = 1;
+                        await slip.save();
+                        status = 'GRANTED';
+                        reason = 'Access Granted: Welcome to the hospital entrance (ICU visitor).';
+                    } else if (slip.scanned_count === 1) {
+                        if (!slip.valid_until) {
+                            const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                            slip.valid_until = addHours(new Date(), durationHours);
+                        }
+                        slip.scanned_count = 2;
+                        slip.status = 'VISITING';
+                        await slip.save();
+                        status = 'GRANTED';
+                        reason = 'Access Granted: Welcome to the ICU.';
+                    }
+                } else {
+                    if (!slip.valid_until) {
+                        const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                        slip.valid_until = addHours(new Date(), durationHours);
+                    }
+                    slip.scanned_count = 1;
+                    slip.status = 'VISITING';
+                    await slip.save();
+                    status = 'GRANTED';
+                    reason = 'Access Granted: Welcome to the facility.';
                 }
-
-                slip.scanned_count += 1;
-                slip.status = 'VISITING';
-                await slip.save();
-                
-                status = 'GRANTED';
-                reason = 'Access Granted: Welcome to the facility.';
             }
         }
 
@@ -258,14 +288,32 @@ exports.revokeSlip = async (req, res) => {
 exports.acceptSlip = async (req, res) => {
     try {
         const { id } = req.body;
-        const slip = await VisitorSlip.findByPk(id, { include: [Relative, Patient] });
+        const slip = await VisitorSlip.findByPk(id, { include: [Relative, Patient, Admission] });
         if (!slip) return res.status(404).json({ error: 'Slip not found' });
 
         if (slip.status !== 'ACTIVE') {
             return res.status(400).json({ error: `Cannot accept slip in ${slip.status} state` });
         }
 
-        slip.status = 'VISITING';
+        if (slip.ward_category === 'ICU') {
+            if (slip.scanned_count === 0) {
+                slip.scanned_count = 1;
+            } else if (slip.scanned_count === 1) {
+                if (!slip.valid_until) {
+                    const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                    slip.valid_until = addHours(new Date(), durationHours);
+                }
+                slip.scanned_count = 2;
+                slip.status = 'VISITING';
+            }
+        } else {
+            if (!slip.valid_until) {
+                const durationHours = slip.Admission?.visit_duration_hours || parseFloat(process.env.SLIP_VALIDITY_HOURS) || 1;
+                slip.valid_until = addHours(new Date(), durationHours);
+            }
+            slip.scanned_count = 1;
+            slip.status = 'VISITING';
+        }
         await slip.save();
 
         // Log manual entry
@@ -278,7 +326,7 @@ exports.acceptSlip = async (req, res) => {
 
         await AuditLog.create({
             action: 'MANUAL_ENTRY_GRANTED',
-            details: `Guard manual entry for ${slip.Relative.name} visitng ${slip.Patient.full_name}`,
+            details: `Guard manual entry for ${slip.Relative?.name || 'GUEST'} visiting ${slip.Patient?.full_name || 'Patient'}`,
             user_id: req.user.id
         });
 
