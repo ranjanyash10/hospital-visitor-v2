@@ -473,7 +473,11 @@ const GuardDashboard = () => {
         );
     }
 
-    const filteredSlips = allSlips.filter(s => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todaySlips = allSlips.filter(s => new Date(s.createdAt) >= startOfToday);
+
+    const filteredSlips = todaySlips.filter(s => {
         if (statusFilter === 'VISITING') {
             return s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU');
         }
@@ -625,19 +629,19 @@ const GuardDashboard = () => {
                                         onClick={() => setStatusFilter('VISITING')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'VISITING' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Visiting ({allSlips.filter(s => s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU')).length})
+                                        Visiting ({todaySlips.filter(s => s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU')).length})
                                     </button>
                                     <button
                                         onClick={() => setStatusFilter('EXPIRED')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'EXPIRED' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Expired ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
+                                        Expired ({todaySlips.filter(s => s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
                                     </button>
                                     <button
                                         onClick={() => setStatusFilter('CHECKED_OUT')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'CHECKED_OUT' ? 'bg-white text-slate-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Checked Out ({allSlips.filter(s => s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
+                                        Checked Out ({todaySlips.filter(s => s.status === 'EXPIRED' && s.expiryReason !== 'AUTO_TIMEOUT' && s.scanned_count > 0).length})
                                     </button>
                                 </div>
 
@@ -699,7 +703,7 @@ const GuardDashboard = () => {
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-4.5 text-right">
-                                                                {statusFilter === 'VISITING' ? (
+                                                                {(statusFilter === 'VISITING' || statusFilter === 'EXPIRED') ? (
                                                                     <div className="flex flex-col gap-1.5 items-end">
                                                                         <button
                                                                             onClick={() => handleCheckout(slip.id)}
@@ -714,10 +718,6 @@ const GuardDashboard = () => {
                                                                             Force Remove
                                                                         </button>
                                                                     </div>
-                                                                ) : statusFilter === 'EXPIRED' ? (
-                                                                    <span className="inline-block px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl text-[11px] font-black uppercase border border-amber-100">
-                                                                        Timed Out
-                                                                    </span>
                                                                 ) : (
                                                                     <span className="inline-block px-3 py-1.5 bg-slate-50 text-slate-500 rounded-xl text-[11px] font-black uppercase border border-slate-200">
                                                                         Checked Out
