@@ -666,7 +666,7 @@ const AdminDashboard = () => {
                         <tbody className="divide-y divide-slate-50 font-mono">
                             {audits.map(audit => (
                                 <tr key={audit.id} className="text-[16px] group hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-8 py-5 text-slate-400 font-bold">{format(new Date(audit.createdAt), 'HH:mm:ss.SSS')}</td>
+                                    <td className="px-8 py-5 text-slate-400 font-bold">{format(new Date(audit.createdAt), 'HH:mm:ss.SSS • dd/MM/yyyy')}</td>
                                     <td className="px-8 py-5 font-black text-slate-700 uppercase tracking-tighter">{audit.User?.username || 'ROOT_SERVER'}</td>
                                     <td className="px-8 py-5">
                                         <span className={`px-3 py-1.5 rounded font-black text-[12px]

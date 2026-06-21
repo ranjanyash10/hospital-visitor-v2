@@ -446,7 +446,7 @@ const GuardDashboard = () => {
                                     Slip ID: {successData.slip_id}
                                 </span>
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                    {format(new Date(successData.timestamp), 'HH:mm:ss')}
+                                    {format(new Date(successData.timestamp), 'HH:mm:ss • dd/MM/yyyy')}
                                 </span>
                             </div>
                         </div>
@@ -690,11 +690,11 @@ const GuardDashboard = () => {
 
                                                             <td className="px-4 py-4.5">
                                                                 <p className="text-[14px] font-black text-slate-800 tabular-nums">
-                                                                    {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : '—'}
+                                                                    {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm • dd/MM/yyyy') : '—'}
                                                                 </p>
                                                                 {statusFilter !== 'VISITING' && slip.updatedAt && (
                                                                     <p className="text-[11px] font-bold text-slate-400 mt-1.5 tabular-nums">
-                                                                        → {format(new Date(slip.updatedAt), 'HH:mm')}
+                                                                        → {format(new Date(slip.updatedAt), 'HH:mm • dd/MM/yyyy')}
                                                                     </p>
                                                                 )}
                                                             </td>
@@ -765,7 +765,7 @@ const GuardDashboard = () => {
                                     <div className="flex items-center justify-between">
                                         <span className="text-[11px] text-slate-500 font-mono tracking-tighter">{slip.slip_token}</span>
                                         <span className="text-[11px] text-slate-500 font-bold tabular-nums">
-                                            {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm') : ''}
+                                            {slip.createdAt ? format(new Date(slip.createdAt), 'HH:mm • dd/MM/yyyy') : ''}
                                         </span>
                                     </div>
                                 </div>
