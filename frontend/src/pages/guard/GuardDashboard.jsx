@@ -500,8 +500,8 @@ const GuardDashboard = () => {
                     <div className="flex items-center gap-4">
                         <img src={logo} alt="Sri Balaji Action Medical Institute" className="w-16 h-16 object-contain drop-shadow-md" />
                         <div className="flex flex-col">
-                            <p className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight">Sri Balaji Action</p>
-                            <p className="text-[10px] md:text-xs font-black text-brand-500 uppercase tracking-[0.25em] mt-0.5">Medical Institute</p>
+                            <p className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight">Sri Balaji</p>
+                            <p className="text-[10px] md:text-xs font-black text-brand-500 uppercase tracking-[0.25em] mt-0.5">Action Medical Institute</p>
                         </div>
                     </div>
 
