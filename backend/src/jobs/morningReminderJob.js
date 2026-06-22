@@ -17,9 +17,9 @@ const startMorningReminderJob = () => {
         try {
             const nowIST = getISTDate();
             
-            // Check if it is currently 8:00 AM IST
-            if (nowIST.getHours() === 8 && nowIST.getMinutes() === 0) {
-                console.log('[Morning Reminder] Triggered at 8:00 AM IST. Fetching active admissions...');
+            // Check if it is currently 7:00 AM IST
+            if (nowIST.getHours() === 7 && nowIST.getMinutes() === 0) {
+                console.log('[Morning Reminder] Triggered at 7:00 AM IST. Fetching active admissions...');
                 
                 const activeAdmissions = await Admission.findAll({
                     where: { status: 'ACTIVE' },
@@ -32,6 +32,7 @@ const startMorningReminderJob = () => {
                 console.log(`[Morning Reminder] Found ${activeAdmissions.length} active admission(s).`);
 
                 const startOfToday = getStartOfTodayIST();
+                const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
                 for (const admission of activeAdmissions) {
                     try {
@@ -88,6 +89,11 @@ const startMorningReminderJob = () => {
                             details: `Admission ID: ${admission.id}`,
                             ip_address: '127.0.0.1'
                         });
+
+                        // Space out sends by 10 to 15 seconds to prevent spam flagging
+                        const randomMs = Math.floor(Math.random() * (15000 - 10000 + 1) + 10000);
+                        console.log(`[Morning Reminder] Waiting ${randomMs / 1000}s before next message...`);
+                        await delay(randomMs);
 
                     } catch (err) {
                         console.error(`[Morning Reminder] Error processing admission ${admission.id}:`, err.message);
