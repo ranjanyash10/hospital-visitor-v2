@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const { addMinutes, isAfter } = require('date-fns');
 const { OtpLog } = require('../models');
 const twilio = require('twilio');
+const { sendWhatsAppMessage } = require('./whatsappService');
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -32,43 +33,15 @@ const writeDebugLog = (msg) => {
     }
 };
 
-// Real WhatsApp Sender using Twilio
+// Real WhatsApp Sender using local whatsapp-web.js
 const sendSMS = async (mobile, message) => {
     try {
-        if (!client) {
-            console.error(`[TWILIO CONFIG ERROR] TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN is missing in Environment Variables.`);
-            console.log(`[FALLBACK MOCK ALERT] Dispatch skipped due to missing credentials.`);
-            console.log(`[FALLBACK MOCK] To: ${mobile} | Message: ${message}`);
-            return false;
-        }
-        const fullNumber = formatToE164(mobile);
-        const to = `whatsapp:${fullNumber}`;
-        const from = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
-
-        const debugMsg = `[${new Date().toISOString()}] [TWILIO DEBUG] Attempting Dispatch -> From: ${from} | To: ${to} | Message: ${message}\n`;
-        writeDebugLog(debugMsg);
-
-        const response = await client.messages.create({
-            body: message,
-            from: from,
-            to: to
-        });
-
-        const successMsg = `[${new Date().toISOString()}] [TWILIO SUCCESS] SID: ${response.sid}\n`;
-        writeDebugLog(successMsg);
-
-        console.log(`[TWILIO SUCCESS] SID: ${response.sid} | To: ${to}`);
-        return true;
+        console.log(`[Notification Dispatch] Routing message to ${mobile} via WhatsApp Web Client...`);
+        const result = await sendWhatsAppMessage(mobile, message);
+        return result;
     } catch (error) {
-        let errorDesc = `[${new Date().toISOString()}] [TWILIO ERROR] Status: ${error.status} | Code: ${error.code} | Message: ${error.message}\n`;
-        if (error.code === 63015) {
-            errorDesc += `[TIP] This error means the recipient (+919142577780) has not joined the Twilio Sandbox. They must send "join <your-sandbox-word>" to +1 415 523 8886.\n`;
-        }
-        writeDebugLog(errorDesc);
-
-        console.error(`[TWILIO ERROR] Status: ${error.status} | Code: ${error.code} | Message: ${error.message}`);
-        // Fallback to mock log so system doesn't crash if Twilio fails
-        console.log(`[FALLBACK MOCK ALERT] Dispatch skipped. Check Twilio config or Sandbox JOIN status.`);
+        console.error(`[Notification Dispatch] WhatsApp Web sending failed:`, error.message);
+        // Fallback to mock log so system doesn't crash if sending fails
         console.log(`[FALLBACK MOCK] To: ${mobile} | Message: ${message}`);
         return false;
     }

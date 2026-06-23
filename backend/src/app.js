@@ -25,6 +25,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
 const walkinRoutes = require('./routes/walkinRoutes');
+const { initWhatsApp } = require('./services/whatsappService');
 
 const app = express();
 
@@ -241,6 +242,7 @@ if (require.main === module) {
             startExpiryJob();
             startHISSyncJob();
             startMorningReminderJob();
+            initWhatsApp();
             server.listen(PORT, () => {
                 console.log(`Server running on port ${PORT}`);
                 console.log(`Socket.io ready on port ${PORT}`);
