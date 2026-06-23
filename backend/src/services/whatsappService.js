@@ -22,8 +22,10 @@ const client = new Client({
 });
 
 let isReady = false;
+let currentQr = null;
 
 client.on('qr', (qr) => {
+    currentQr = qr;
     console.log('\n--- SCAN THIS QR CODE WITH WHATSAPP (Settings -> Linked Devices) ---');
     qrcode.generate(qr, { small: true });
     console.log('--------------------------------------------------------------------\n');
@@ -32,6 +34,7 @@ client.on('qr', (qr) => {
 client.on('ready', () => {
     console.log('[WhatsApp Web Client] Authenticated and fully ready!');
     isReady = true;
+    currentQr = null;
 });
 
 client.on('auth_failure', (msg) => {
@@ -98,5 +101,6 @@ const sendWhatsAppMessage = (toMobile, message) => {
 module.exports = {
     initWhatsApp,
     sendWhatsAppMessage,
+    getCurrentQr: () => currentQr,
     client
 };

@@ -3,6 +3,8 @@ const { isAfter, addHours } = require('date-fns');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
+const QRCodeImage = require('qrcode');
+const { getCurrentQr } = require('../services/whatsappService');
 
 // --- Auth Controller ---
 exports.login = async (req, res) => {
@@ -141,4 +143,64 @@ exports.revokeSlip = async (req, res) => {
     slip.expiryReason = 'REVOKED';
     await slip.save();
     res.json({ success: true, message: 'Slip revoked' });
+};
+
+exports.getWhatsAppQr = async (req, res) => {
+    const currentQr = getCurrentQr();
+    if (!currentQr) {
+        return res.send(`
+            <html>
+                <head>
+                    <meta http-equiv="refresh" content="5">
+                    <style>
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; }
+                        .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h2 { color: #10b981; margin-bottom: 0.5rem; }
+                        p { color: #64748b; margin-bottom: 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h2>✓ WhatsApp Connected!</h2>
+                        <p>The backend client is already authenticated and active.</p>
+                    </div>
+                </body>
+            </html>
+        `);
+    }
+    try {
+        const qrImage = await QRCodeImage.toDataURL(currentQr);
+        res.send(`
+            <html>
+                <head>
+                    <meta http-equiv="refresh" content="10">
+                    <title>WhatsApp Backend Login</title>
+                    <style>
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; margin: 0; }
+                        .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h2 { margin-top: 0; margin-bottom: 1rem; color: #0f172a; }
+                        img { width: 280px; height: 280px; border: 4px solid #f1f5f9; border-radius: 1rem; margin: 1rem 0; }
+                        .steps { font-size: 0.9rem; color: #475569; text-align: left; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; line-height: 1.5; }
+                        p.footer { color: #64748b; font-size: 0.75rem; margin: 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h2>Link WhatsApp Server</h2>
+                        <div class="steps">
+                            1. Open WhatsApp on your phone.<br/>
+                            2. Tap <b>Settings</b> or <b>Menu</b> (three dots).<br/>
+                            3. Select <b>Linked Devices</b> -> <b>Link a Device</b>.<br/>
+                            4. Scan the QR code below.
+                        </div>
+                        <img src="${qrImage}" alt="Scan Me" />
+                        <p class="footer">Refreshes automatically every 10 seconds.</p>
+                    </div>
+                </body>
+            </html>
+        `);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Error generating QR code image');
+    }
 };
