@@ -8,6 +8,7 @@
     "dev": "node --watch src/app.js",
     "seed": "node src/seed.js",
     "prod-seed": "node src/prod-seed.js",
+    "postinstall": "npx puppeteer browsers install chrome",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
