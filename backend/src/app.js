@@ -99,7 +99,18 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
-app.get('/debug', (req, res) => res.json({ msg: 'debug' }));
+app.get('/debug', (req, res) => {
+    const { getIsReady, getCurrentQr, getLastError } = require('./services/whatsappService');
+    res.json({
+        msg: 'debug',
+        whatsapp: {
+            isReady: getIsReady(),
+            hasQr: !!getCurrentQr(),
+            lastError: getLastError(),
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH
+        }
+    });
+});
 app.use('/api/auth', authRoutes);
 app.get('/api/whatsapp-qr', require('./controllers/authController').getWhatsAppQr);
 app.post('/api/whatsapp-logout', require('./controllers/authController').logoutWhatsApp);

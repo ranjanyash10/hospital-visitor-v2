@@ -7,6 +7,7 @@ const fs = require('fs');
 let client = null;
 let isReady = false;
 let currentQr = null;
+let lastError = null;
 
 const createClient = () => {
     console.log('[WhatsApp Web Client] Creating new client instance...');
@@ -89,9 +90,11 @@ const logoutWhatsApp = async () => {
 
 const initWhatsApp = () => {
     console.log('[WhatsApp Web Client] Initializing...');
+    lastError = null;
     createClient();
     client.initialize().catch(err => {
         console.error('[WhatsApp Web Client] Initialization error:', err);
+        lastError = err.message || String(err);
     });
 };
 
@@ -145,5 +148,6 @@ module.exports = {
     logoutWhatsApp,
     getCurrentQr: () => currentQr,
     getIsReady: () => isReady,
-    getClient: () => client
+    getClient: () => client,
+    getLastError: () => lastError
 };
