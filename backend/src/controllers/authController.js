@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
 const QRCodeImage = require('qrcode');
-const { getCurrentQr } = require('../services/whatsappService');
+const { getCurrentQr, getIsReady, logoutWhatsApp } = require('../services/whatsappService');
 
 // --- Auth Controller ---
 exports.login = async (req, res) => {
@@ -146,28 +146,59 @@ exports.revokeSlip = async (req, res) => {
 };
 
 exports.getWhatsAppQr = async (req, res) => {
+    const isReady = getIsReady();
     const currentQr = getCurrentQr();
-    if (!currentQr) {
+
+    if (isReady) {
         return res.send(`
             <html>
                 <head>
-                    <meta http-equiv="refresh" content="5">
+                    <title>WhatsApp Connected</title>
                     <style>
-                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; }
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; margin: 0; }
                         .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
-                        h2 { color: #10b981; margin-bottom: 0.5rem; }
-                        p { color: #64748b; margin-bottom: 0; }
+                        h2 { color: #10b981; margin-top: 0; margin-bottom: 0.5rem; }
+                        p { color: #64748b; margin-bottom: 1.5rem; line-height: 1.5; }
+                        button { background-color: #ef4444; color: white; border: none; padding: 0.75rem 1.5rem; font-size: 0.95rem; font-weight: 600; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s; }
+                        button:hover { background-color: #dc2626; }
                     </style>
                 </head>
                 <body>
                     <div class="card">
                         <h2>✓ WhatsApp Connected!</h2>
                         <p>The backend client is already authenticated and active.</p>
+                        <form action="/api/whatsapp-logout" method="POST" style="margin: 0;">
+                            <button type="submit">Logout / Reset Connection</button>
+                        </form>
                     </div>
                 </body>
             </html>
         `);
     }
+
+    if (!currentQr) {
+        return res.send(`
+            <html>
+                <head>
+                    <meta http-equiv="refresh" content="3">
+                    <title>Initializing WhatsApp...</title>
+                    <style>
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background-color: #f1f5f9; color: #1e293b; margin: 0; }
+                        .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+                        h2 { color: #3b82f6; margin-top: 0; margin-bottom: 0.5rem; }
+                        p { color: #64748b; margin-bottom: 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h2>🔄 Initializing Client...</h2>
+                        <p>Generating the QR code. This page refreshes automatically...</p>
+                    </div>
+                </body>
+            </html>
+        `);
+    }
+
     try {
         const qrImage = await QRCodeImage.toDataURL(currentQr);
         res.send(`
@@ -180,8 +211,10 @@ exports.getWhatsAppQr = async (req, res) => {
                         .card { background: white; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
                         h2 { margin-top: 0; margin-bottom: 1rem; color: #0f172a; }
                         img { width: 280px; height: 280px; border: 4px solid #f1f5f9; border-radius: 1rem; margin: 1rem 0; }
-                        .steps { font-size: 0.9rem; color: #475569; text-align: left; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; line-height: 1.5; }
-                        p.footer { color: #64748b; font-size: 0.75rem; margin: 0; }
+                        .steps { font-size: 0.9rem; color: #475569; text-align: left; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; line-height: 1.5; }
+                        button { background-color: #94a3b8; color: white; border: none; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600; border-radius: 0.375rem; cursor: pointer; transition: background-color 0.2s; }
+                        button:hover { background-color: #64748b; }
+                        p.footer { color: #64748b; font-size: 0.75rem; margin-top: 1rem; margin-bottom: 0; }
                     </style>
                 </head>
                 <body>
@@ -194,6 +227,11 @@ exports.getWhatsAppQr = async (req, res) => {
                             4. Scan the QR code below.
                         </div>
                         <img src="${qrImage}" alt="Scan Me" />
+                        
+                        <form action="/api/whatsapp-logout" method="POST" style="margin: 0;">
+                            <button type="submit">Reset Scan Session</button>
+                        </form>
+                        
                         <p class="footer">Refreshes automatically every 10 seconds.</p>
                     </div>
                 </body>
@@ -202,5 +240,15 @@ exports.getWhatsAppQr = async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('Error generating QR code image');
+    }
+};
+
+exports.logoutWhatsApp = async (req, res) => {
+    try {
+        await logoutWhatsApp();
+        res.redirect('/api/whatsapp-qr');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Error resetting WhatsApp session: ' + err.message);
     }
 };

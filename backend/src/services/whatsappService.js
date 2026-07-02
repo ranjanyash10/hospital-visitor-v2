@@ -2,53 +2,94 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 
-const client = new Client({
-    authStrategy: new LocalAuth({
-        dataPath: path.join(os.tmpdir(), '.wwebjs_auth')
-    }),
-    puppeteer: {
-        headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--disable-gpu'
-        ]
-    }
-});
-
+let client = null;
 let isReady = false;
 let currentQr = null;
 
-client.on('qr', (qr) => {
-    currentQr = qr;
-    console.log('\n--- SCAN THIS QR CODE WITH WHATSAPP (Settings -> Linked Devices) ---');
-    qrcode.generate(qr, { small: true });
-    console.log('--------------------------------------------------------------------\n');
-});
+const createClient = () => {
+    console.log('[WhatsApp Web Client] Creating new client instance...');
+    
+    const userAgentStr = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
-client.on('ready', () => {
-    console.log('[WhatsApp Web Client] Authenticated and fully ready!');
-    isReady = true;
-    currentQr = null;
-});
+    client = new Client({
+        authStrategy: new LocalAuth({
+            dataPath: path.join(os.tmpdir(), '.wwebjs_auth')
+        }),
+        userAgent: userAgentStr,
+        puppeteer: {
+            headless: true,
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--disable-gpu',
+                '--disable-blink-features=AutomationControlled',
+                `--user-agent=${userAgentStr}`
+            ]
+        }
+    });
 
-client.on('auth_failure', (msg) => {
-    console.error('[WhatsApp Web Client] Auth failure:', msg);
-});
+    client.on('qr', (qr) => {
+        currentQr = qr;
+        console.log('\n--- SCAN THIS QR CODE WITH WHATSAPP (Settings -> Linked Devices) ---');
+        qrcode.generate(qr, { small: true });
+        console.log('--------------------------------------------------------------------\n');
+    });
 
-client.on('disconnected', (reason) => {
-    console.warn('[WhatsApp Web Client] Disconnected:', reason);
+    client.on('ready', () => {
+        console.log('[WhatsApp Web Client] Authenticated and fully ready!');
+        isReady = true;
+        currentQr = null;
+    });
+
+    client.on('auth_failure', (msg) => {
+        console.error('[WhatsApp Web Client] Auth failure:', msg);
+        clearSessionCache();
+    });
+
+    client.on('disconnected', (reason) => {
+        console.warn('[WhatsApp Web Client] Disconnected:', reason);
+        isReady = false;
+        clearSessionCache();
+    });
+};
+
+const clearSessionCache = () => {
+    const sessionPath = path.join(os.tmpdir(), '.wwebjs_auth');
+    if (fs.existsSync(sessionPath)) {
+        try {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log('[WhatsApp Web Client] Session cache directory removed.');
+        } catch (err) {
+            console.error('[WhatsApp Web Client] Error removing session directory:', err.message);
+        }
+    }
+};
+
+const logoutWhatsApp = async () => {
+    console.log('[WhatsApp Web Client] Requesting session logout/reset...');
     isReady = false;
-});
+    currentQr = null;
+    if (client) {
+        try {
+            await client.destroy();
+        } catch (err) {
+            console.error('[WhatsApp Web Client] Error during client destroy:', err.message);
+        }
+        client = null;
+    }
+    clearSessionCache();
+    initWhatsApp();
+};
 
-// Initialize client
 const initWhatsApp = () => {
     console.log('[WhatsApp Web Client] Initializing...');
+    createClient();
     client.initialize().catch(err => {
         console.error('[WhatsApp Web Client] Initialization error:', err);
     });
@@ -65,7 +106,7 @@ const processQueue = async () => {
     while (queue.length > 0) {
         const { toMobile, message, resolve, reject } = queue.shift();
         try {
-            if (!isReady) {
+            if (!isReady || !client) {
                 throw new Error('WhatsApp client is not ready. Message skipped.');
             }
 
@@ -101,6 +142,8 @@ const sendWhatsAppMessage = (toMobile, message) => {
 module.exports = {
     initWhatsApp,
     sendWhatsAppMessage,
+    logoutWhatsApp,
     getCurrentQr: () => currentQr,
-    client
+    getIsReady: () => isReady,
+    getClient: () => client
 };

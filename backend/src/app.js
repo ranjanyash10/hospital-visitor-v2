@@ -102,6 +102,7 @@ app.use(morgan('dev'));
 app.get('/debug', (req, res) => res.json({ msg: 'debug' }));
 app.use('/api/auth', authRoutes);
 app.get('/api/whatsapp-qr', require('./controllers/authController').getWhatsAppQr);
+app.post('/api/whatsapp-logout', require('./controllers/authController').logoutWhatsApp);
 app.use('/api/kiosk', kioskRoutes);
 app.use('/api/guard', guardRoutes);
 app.use('/api/admin', adminRoutes);
