@@ -11,7 +11,7 @@ import {
     QrCode, Shield, RefreshCw, ChevronLeft, ChevronRight,
     Camera, Scan, History, UserCheck, CreditCard
 } from 'lucide-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { format } from 'date-fns';
 import logo from '../../assets/logo.png';
 
@@ -303,46 +303,86 @@ const GuardDashboard = () => {
         }
     };
 
-    const toggleScanner = () => {
+    const toggleScanner = async () => {
         if (!scannerActive) {
             setScannerActive(true);
             // Wait for DOM to render the "reader" div
-            setTimeout(() => {
-                try {
-                    const scanner = new Html5QrcodeScanner("reader", {
-                        fps: 10,
-                        qrbox: { width: 200, height: 200 },
-                        rememberLastUsedCamera: false,
-                        showTorchButtonIfSupported: true,
-                        videoConstraints: {
-                            facingMode: "environment"
-                        }
-                    }, /* verbose= */ false);
+            await new Promise(r => setTimeout(r, 400));
 
-                    scanner.render(
-                        (text) => {
-                            console.log('[Scanner] Scanned:', text);
-                            scanner.clear().then(() => {
-                                setScannerActive(false);
-                                handleVerifyToken(text);
-                            }).catch(err => {
-                                console.error('[Scanner] Clear failed:', err);
-                                setScannerActive(false);
-                            });
-                        },
-                        (error) => {
-                            // Too noisy to log every frame, but we can log high-level failures if needed
-                        }
+            try {
+                const html5Qr = new Html5Qrcode("reader");
+                scannerRef.current = html5Qr;
+
+                const qrConfig = {
+                    fps: 10,
+                    qrbox: { width: 200, height: 200 }
+                };
+
+                const onSuccess = (text) => {
+                    console.log('[Scanner] Scanned:', text);
+                    html5Qr.stop().then(() => {
+                        html5Qr.clear();
+                        setScannerActive(false);
+                        handleVerifyToken(text);
+                    }).catch(err => {
+                        console.error('[Scanner] Stop failed:', err);
+                        setScannerActive(false);
+                    });
+                };
+
+                const onError = () => { /* ignore per-frame decode errors */ };
+
+                // Fallback chain: rear cam → front cam → any cam
+                try {
+                    // Try 1: Rear camera (phones)
+                    await html5Qr.start(
+                        { facingMode: "environment" },
+                        qrConfig, onSuccess, onError
                     );
-                    scannerRef.current = scanner;
-                } catch (err) {
-                    console.error('[Scanner] Initialization failed:', err);
-                    alert("Could not start scanner. Please ensure you are using HTTPS or localhost.");
+                    console.log('[Scanner] Started with rear camera');
+                } catch (e1) {
+                    console.warn('[Scanner] Rear camera failed, trying front:', e1);
+                    try {
+                        // Try 2: Front camera (laptops / tablets)
+                        await html5Qr.start(
+                            { facingMode: "user" },
+                            qrConfig, onSuccess, onError
+                        );
+                        console.log('[Scanner] Started with front camera');
+                    } catch (e2) {
+                        console.warn('[Scanner] Front camera failed, trying device list:', e2);
+                        try {
+                            // Try 3: First available camera by device ID
+                            const devices = await Html5Qrcode.getCameras();
+                            if (devices && devices.length > 0) {
+                                await html5Qr.start(
+                                    devices[0].id,
+                                    qrConfig, onSuccess, onError
+                                );
+                                console.log('[Scanner] Started with device:', devices[0].label);
+                            } else {
+                                throw new Error('No cameras found on this device');
+                            }
+                        } catch (e3) {
+                            console.error('[Scanner] All camera methods failed:', e3);
+                            alert('Could not access any camera. Please check camera permissions in your browser settings, or use the manual code entry below.');
+                            setScannerActive(false);
+                        }
+                    }
                 }
-            }, 300);
+            } catch (err) {
+                console.error('[Scanner] Initialization failed:', err);
+                alert('Scanner failed to start. Please use the manual code entry below.');
+                setScannerActive(false);
+            }
         } else {
             if (scannerRef.current) {
-                scannerRef.current.clear().catch(e => console.error("Scanner clear error", e));
+                try {
+                    await scannerRef.current.stop();
+                    scannerRef.current.clear();
+                } catch (e) {
+                    console.error('Scanner stop error', e);
+                }
                 scannerRef.current = null;
             }
             setScannerActive(false);
@@ -602,17 +642,15 @@ const GuardDashboard = () => {
                                         </form>
                                     </>
                                 ) : (
-                                    <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative bg-slate-900">
-                                        <div id="reader" className="w-full" style={{ minHeight: '300px' }}></div>
+                                    <div className="w-full max-w-sm rounded-3xl shadow-2xl relative bg-slate-900 p-2">
+                                        <div id="reader" className="w-full rounded-2xl overflow-hidden" style={{ minHeight: '300px' }}></div>
                                         <button
                                             onClick={toggleScanner}
-                                            className="absolute top-4 right-4 bg-white/20 backdrop-blur p-2 rounded-full text-white hover:bg-white/40 transition-colors"
+                                            className="mt-3 w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl text-xs transition-colors shadow-md flex items-center justify-center gap-2"
                                         >
-                                            <LogOut size={20} />
+                                            <LogOut size={14} />
+                                            Close Scanner
                                         </button>
-                                        <div className="absolute bottom-6 left-0 w-full text-center">
-                                            <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Point at Visitor Pass</p>
-                                        </div>
                                     </div>
                                 )}
                             </div>
