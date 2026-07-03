@@ -146,6 +146,7 @@ exports.revokeSlip = async (req, res) => {
 };
 
 exports.getWhatsAppQr = async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     const isReady = getIsReady();
     const currentQr = getCurrentQr();
 
