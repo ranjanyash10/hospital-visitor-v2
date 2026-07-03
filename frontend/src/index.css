@@ -86,3 +86,22 @@
     transform: translateY(0);
   }
 }
+
+/* QR Scanner — force video to fill container */
+#reader {
+  width: 100% !important;
+  border: none !important;
+}
+#reader video {
+  width: 100% !important;
+  height: auto !important;
+  object-fit: cover !important;
+  border-radius: 1rem;
+}
+#reader img[alt="scan-region-shade"] {
+  display: none !important;
+}
+/* Hide the ugly default scan region border */
+#qr-shaded-region {
+  border: none !important;
+}

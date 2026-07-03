@@ -642,8 +642,8 @@ const GuardDashboard = () => {
                                         </form>
                                     </>
                                 ) : (
-                                    <div className="w-full max-w-sm rounded-3xl shadow-2xl relative bg-slate-900 p-2">
-                                        <div id="reader" className="w-full rounded-2xl overflow-hidden" style={{ minHeight: '300px' }}></div>
+                                    <div className="w-full max-w-md rounded-3xl shadow-2xl bg-slate-900 p-3">
+                                        <div id="reader" className="w-full rounded-2xl overflow-hidden"></div>
                                         <button
                                             onClick={toggleScanner}
                                             className="mt-3 w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl text-xs transition-colors shadow-md flex items-center justify-center gap-2"
