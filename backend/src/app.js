@@ -99,7 +99,7 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Routes
-app.get('/debug', (req, res) => {
+app.get('/api/debug', (req, res) => {
     const { getIsReady, getCurrentQr, getLastError } = require('./services/whatsappService');
     res.json({
         msg: 'debug',
