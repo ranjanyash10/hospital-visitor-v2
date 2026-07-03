@@ -258,7 +258,15 @@ const GuardDashboard = () => {
 
     // --- 4e. Manual Scan Verification (Guard scans Visitor) ---
     const [scannerActive, setScannerActive] = useState(false);
+    const [manualToken, setManualToken] = useState('');
     const scannerRef = useRef(null);
+
+    const handleManualSubmit = (e) => {
+        e.preventDefault();
+        if (!manualToken.trim()) return;
+        handleVerifyToken(manualToken.trim());
+        setManualToken('');
+    };
 
     const handleVerifyToken = async (token) => {
         try {
@@ -304,7 +312,7 @@ const GuardDashboard = () => {
                     const scanner = new Html5QrcodeScanner("reader", {
                         fps: 10,
                         qrbox: { width: 250, height: 250 },
-                        rememberLastUsedCamera: true,
+                        rememberLastUsedCamera: false,
                         showTorchButtonIfSupported: true
                     }, /* verbose= */ false);
 
@@ -559,18 +567,37 @@ const GuardDashboard = () => {
                             {/* Scanner Toggle */}
                             <div className="flex flex-col items-center gap-6 mt-12">
                                 {!scannerActive ? (
-                                    <button
-                                        onClick={toggleScanner}
-                                        className="w-64 h-64 md:w-80 md:h-80 bg-white rounded-[3rem] shadow-2xl shadow-slate-300/30 flex flex-col items-center justify-center gap-6 group hover:scale-[1.02] transition-all duration-300 border-4 border-dashed border-slate-100 hover:border-brand-200"
-                                    >
-                                        <div className="w-24 h-24 bg-brand-50 rounded-3xl flex items-center justify-center text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors duration-300">
-                                            <Camera size={48} />
-                                        </div>
-                                        <div className="text-center px-6">
-                                            <p className="text-lg font-black text-slate-800 uppercase tracking-tight">Open Scanner</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ready to scan visitor pass</p>
-                                        </div>
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={toggleScanner}
+                                            className="w-64 h-64 md:w-80 md:h-80 bg-white rounded-[3rem] shadow-2xl shadow-slate-300/30 flex flex-col items-center justify-center gap-6 group hover:scale-[1.02] transition-all duration-300 border-4 border-dashed border-slate-100 hover:border-brand-200"
+                                        >
+                                            <div className="w-24 h-24 bg-brand-50 rounded-3xl flex items-center justify-center text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors duration-300">
+                                                <Camera size={48} />
+                                            </div>
+                                            <div className="text-center px-6">
+                                                <p className="text-lg font-black text-slate-800 uppercase tracking-tight">Open Scanner</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ready to scan visitor pass</p>
+                                            </div>
+                                        </button>
+
+                                        {/* Manual / Barcode Scanner Gun Input */}
+                                        <form onSubmit={handleManualSubmit} className="flex gap-2 w-full max-w-sm mt-8 px-4">
+                                            <input
+                                                type="text"
+                                                value={manualToken}
+                                                onChange={(e) => setManualToken(e.target.value)}
+                                                placeholder="Or enter pass code manually / scan with gun"
+                                                className="flex-1 px-4 py-3 bg-white rounded-2xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-brand-500 text-slate-800 shadow-sm"
+                                            />
+                                            <button
+                                                type="submit"
+                                                className="px-4 py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-2xl text-xs transition-colors shadow-md"
+                                            >
+                                                Verify
+                                            </button>
+                                        </form>
+                                    </>
                                 ) : (
                                     <div className="w-full max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl relative">
                                         <div id="reader" className="w-full"></div>
