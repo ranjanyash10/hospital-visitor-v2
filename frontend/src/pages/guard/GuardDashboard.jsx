@@ -311,9 +311,12 @@ const GuardDashboard = () => {
                 try {
                     const scanner = new Html5QrcodeScanner("reader", {
                         fps: 10,
-                        qrbox: { width: 250, height: 250 },
+                        qrbox: { width: 200, height: 200 },
                         rememberLastUsedCamera: false,
-                        showTorchButtonIfSupported: true
+                        showTorchButtonIfSupported: true,
+                        videoConstraints: {
+                            facingMode: "environment"
+                        }
                     }, /* verbose= */ false);
 
                     scanner.render(
@@ -599,8 +602,8 @@ const GuardDashboard = () => {
                                         </form>
                                     </>
                                 ) : (
-                                    <div className="w-full max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl relative">
-                                        <div id="reader" className="w-full"></div>
+                                    <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl relative bg-slate-900">
+                                        <div id="reader" className="w-full" style={{ minHeight: '300px' }}></div>
                                         <button
                                             onClick={toggleScanner}
                                             className="absolute top-4 right-4 bg-white/20 backdrop-blur p-2 rounded-full text-white hover:bg-white/40 transition-colors"
