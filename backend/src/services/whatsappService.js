@@ -121,7 +121,15 @@ const processQueue = async () => {
             const chatId = `${cleaned}@c.us`;
 
             console.log(`[WhatsApp Web Client] Sending message to ${chatId}...`);
-            await client.sendMessage(chatId, message);
+            
+            // 15-second timeout to prevent queue hangs
+            const sendPromise = client.sendMessage(chatId, message);
+            const timeoutPromise = new Promise((_, rej) =>
+                setTimeout(() => rej(new Error('Send operation timed out after 15 seconds')), 15000)
+            );
+
+            await Promise.race([sendPromise, timeoutPromise]);
+            console.log(`[WhatsApp Web Client] Message sent successfully to ${chatId}`);
             
             // Add a small delay between message sends (e.g. 2 seconds) to avoid spam flagging
             await new Promise(r => setTimeout(r, 2000));
