@@ -1,4 +1,4 @@
-// Force deployment rebuild trigger
+// Force deployment rebuild trigger - update 2
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
