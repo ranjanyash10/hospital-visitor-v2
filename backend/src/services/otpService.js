@@ -122,7 +122,7 @@ const sendRegistrationLink = async (mobileNumber, patientName, uhid, ward, bed, 
     const morningHours = `${formatTimeDisplay(schedule.morning.from)} - ${formatTimeDisplay(schedule.morning.to)}`;
     const eveningHours = `${formatTimeDisplay(schedule.evening.from)} - ${formatTimeDisplay(schedule.evening.to)}`;
 
-    const message = `Sri Balaji Action Medical Institute: ${patientName} has been admitted (Ward: ${ward}, Bed: ${bed}).\n\n🕐 *Visiting Hours*\nMorning: ${morningHours}\nEvening: ${eveningHours}\n\n👉 *Note:* If the link below is not clickable, please save this contact number or reply to this message to activate it.\n\nPlease pre-register for your visitor pass here: ${link}`;
+    const message = `Sri Balaji Action Medical Institute: ${patientName} has been admitted (Ward: ${ward}, Bed: ${bed}).\n\nReply with *OK* or any message to receive details and your digital visitor pass link.`;
 
     return await sendSMS(mobileNumber, message);
 };

@@ -58,6 +58,56 @@ const createClient = () => {
         isReady = false;
         clearSessionCache();
     });
+
+    client.on('message', async (msg) => {
+        try {
+            // Only respond to private chats, avoid group chats
+            if (msg.from.endsWith('@c.us')) {
+                const cleanedFrom = msg.from.replace('@c.us', '');
+                // Find active admissions matching this mobile number
+                const { Admission, Patient, Relative } = require('../models');
+                const admissions = await Admission.findAll({
+                    where: { status: 'ACTIVE' },
+                    include: [{
+                        model: Patient,
+                        required: true,
+                        include: [{
+                            model: Relative,
+                            required: false
+                        }]
+                    }]
+                });
+
+                const senderNum = cleanedFrom.slice(-10); // Check last 10 digits
+                
+                const matchedAdmission = admissions.find(adm => {
+                    // Check if the primary relative or any authorized visitors match
+                    const relatives = adm.Patient ? adm.Patient.Relatives || [] : [];
+                    const matchesRelative = relatives.some(r => r.mobile_number && r.mobile_number.replace(/\D/g, '').endsWith(senderNum));
+                    
+                    return matchesRelative && adm.Patient.uhid;
+                });
+
+                if (matchedAdmission) {
+                    const { VISITING_SCHEDULE, formatTimeDisplay } = require('../config/visitingSchedule');
+                    const schedule = VISITING_SCHEDULE[matchedAdmission.ward_category] || VISITING_SCHEDULE[matchedAdmission.ward_type] || VISITING_SCHEDULE['WARD'];
+                    const morningHours = `${formatTimeDisplay(schedule.morning.from)} - ${formatTimeDisplay(schedule.morning.to)}`;
+                    const eveningHours = `${formatTimeDisplay(schedule.evening.from)} - ${formatTimeDisplay(schedule.evening.to)}`;
+                    
+                    const portalUrl = process.env.VISITOR_PORTAL_URL || 'http://127.0.0.1:5173/visitor/register';
+                    const base = portalUrl.endsWith('/') ? portalUrl.slice(0, -1) : portalUrl;
+                    const link = `${base}/${matchedAdmission.Patient.uhid}`;
+
+                    const detailsMsg = `Thank you! Here are the visiting details for ${matchedAdmission.Patient.full_name}:\n\n🏥 Ward: ${matchedAdmission.ward_type}\n🛏️ Bed: ${matchedAdmission.bed_number}\n\n🕐 *Visiting Hours*\nMorning: ${morningHours}\nEvening: ${eveningHours}\n\n🎟️ Click here to register for your Digital QR Pass:\n${link}`;
+                    
+                    await client.sendMessage(msg.from, detailsMsg);
+                    console.log(`[WhatsApp Responder] Automatically sent details for patient ${matchedAdmission.Patient.full_name} to ${msg.from}`);
+                }
+            }
+        } catch (err) {
+            console.error('[WhatsApp Responder] Error handling incoming reply:', err);
+        }
+    });
 };
 
 const clearSessionCache = () => {
