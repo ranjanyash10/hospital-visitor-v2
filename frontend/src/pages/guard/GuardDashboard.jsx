@@ -332,25 +332,25 @@ const GuardDashboard = () => {
 
                 const onError = () => { /* ignore per-frame decode errors */ };
 
-                // Fallback chain: rear cam → front cam → any cam
+                // Fallback chain: front cam → rear cam → any cam
                 try {
-                    // Try 1: Rear camera (phones)
+                    // Try 1: Front camera (mobile/tablet/laptops)
                     await html5Qr.start(
-                        { facingMode: "environment" },
+                        { facingMode: "user" },
                         qrConfig, onSuccess, onError
                     );
-                    console.log('[Scanner] Started with rear camera');
+                    console.log('[Scanner] Started with front camera');
                 } catch (e1) {
-                    console.warn('[Scanner] Rear camera failed, trying front:', e1);
+                    console.warn('[Scanner] Front camera failed, trying rear:', e1);
                     try {
-                        // Try 2: Front camera (laptops / tablets)
+                        // Try 2: Rear camera (phones)
                         await html5Qr.start(
-                            { facingMode: "user" },
+                            { facingMode: "environment" },
                             qrConfig, onSuccess, onError
                         );
-                        console.log('[Scanner] Started with front camera');
+                        console.log('[Scanner] Started with rear camera');
                     } catch (e2) {
-                        console.warn('[Scanner] Front camera failed, trying device list:', e2);
+                        console.warn('[Scanner] Rear camera failed, trying device list:', e2);
                         try {
                             // Try 3: First available camera by device ID
                             const devices = await Html5Qrcode.getCameras();
