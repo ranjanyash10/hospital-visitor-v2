@@ -833,3 +833,45 @@ exports.admitPatient = async (req, res) => {
         res.status(500).json({ error: 'Failed to admit patient: ' + error.message });
     }
 };
+
+exports.resendWhatsAppLink = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const admission = await Admission.findByPk(id, {
+            include: [
+                { model: Patient, include: [{ model: Relative, where: { is_primary: true }, required: false }] }
+            ]
+        });
+
+        if (!admission) {
+            return res.status(404).json({ error: 'Admission not found' });
+        }
+
+        const patient = admission.Patient;
+        if (!patient) {
+            return res.status(404).json({ error: 'Linked Patient not found' });
+        }
+
+        const relative = patient.Relatives?.[0];
+        if (!relative || !relative.mobile_number) {
+            return res.status(400).json({ error: 'No primary relative contact with a valid mobile number found' });
+        }
+
+        const { sendRegistrationLink } = require('../services/otpService');
+        const cleanedMobile = relative.mobile_number.replace(/\D/g, '');
+        
+        await sendRegistrationLink(
+            cleanedMobile,
+            patient.full_name,
+            patient.uhid,
+            admission.ward_type,
+            admission.bed_number,
+            admission.ward_category
+        );
+
+        res.json({ success: true, message: 'Invitation WhatsApp link resent successfully.' });
+    } catch (error) {
+        console.error('Resend Error:', error);
+        res.status(500).json({ error: 'Failed to resend link: ' + error.message });
+    }
+};

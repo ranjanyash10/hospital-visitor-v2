@@ -770,6 +770,15 @@ const AdminDashboard = () => {
         }
     };
 
+    const resendWhatsAppInvitation = async (admissionId) => {
+        try {
+            const res = await api.post(`/admin/admissions/${admissionId}/resend-link`);
+            alert(res.data.message || 'Invitation link resent successfully.');
+        } catch (error) {
+            alert(error.response?.data?.error || 'Failed to resend invitation link.');
+        }
+    };
+
     const renderPatients = () => (
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -941,6 +950,13 @@ const AdminDashboard = () => {
                                                         title="Edit Visitor Quota & Duration"
                                                     >
                                                         <Pencil size={12} /> Quota
+                                                    </button>
+                                                    <button
+                                                        onClick={() => resendWhatsAppInvitation(p.admission_id)}
+                                                        className="px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-100 hover:border-emerald-300 transition-all flex items-center gap-1"
+                                                        title="Resend WhatsApp Link"
+                                                    >
+                                                        <RefreshCw size={12} /> Resend
                                                     </button>
                                                 </>
                                             )}
