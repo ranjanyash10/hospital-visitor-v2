@@ -19,7 +19,6 @@ requiredEnv.forEach(env => {
 const { sequelize } = require('./models');
 
 // Import Routes
-const kioskRoutes = require('./routes/kioskRoutes');
 const guardRoutes = require('./routes/guardRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -114,7 +113,6 @@ app.get('/api/debug', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.get('/api/whatsapp-qr', require('./controllers/authController').getWhatsAppQr);
 app.post('/api/whatsapp-logout', require('./controllers/authController').logoutWhatsApp);
-app.use('/api/kiosk', kioskRoutes);
 app.use('/api/guard', guardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/visitor', visitorRoutes);
