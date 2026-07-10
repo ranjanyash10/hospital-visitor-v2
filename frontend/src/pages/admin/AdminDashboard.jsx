@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import api from '../../api';
 import { LayoutDashboard, Users, RefreshCw, BarChart2, Shield, ShieldCheck, Settings, LogOut, Search, Layers, Activity, FileText, ChevronRight, Filter, Download, Database, Network, Server, Monitor, ShieldAlert, Clock, History, UserCheck, Pencil, Check, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,17 @@ const AdminDashboard = () => {
     // Patient Quotas pagination & search state
     const [patientPagination, setPatientPagination] = useState({ page: 1, limit: 15, pages: 1, total: 0 });
     const [patientSearch, setPatientSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const searchTimerRef = useRef(null);
+
+    // Debounce patientSearch → debouncedSearch (300ms)
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setDebouncedSearch(patientSearch);
+        }, 300);
+        return () => clearTimeout(searchTimerRef.current);
+    }, [patientSearch]);
 
     // Account Management State
     const [passwords, setPasswords] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
@@ -89,7 +100,7 @@ const AdminDashboard = () => {
                     params: {
                         page: patientPagination.page,
                         limit: patientPagination.limit,
-                        search: patientSearch
+                        search: debouncedSearch
                     }
                 });
                 setPatients(res.data.patients);
@@ -108,7 +119,7 @@ const AdminDashboard = () => {
             if (activeView === 'registry') fetchData();
         }, 30000);
         return () => clearInterval(interval);
-    }, [pagination.page, pagination.limit, filters, activeView, patientPagination.page, patientSearch]);
+    }, [pagination.page, pagination.limit, filters, activeView, patientPagination.page, debouncedSearch]);
 
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
