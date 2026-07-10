@@ -295,18 +295,22 @@ exports.getPatients = async (req, res) => {
         // Build patient search condition
         const patientWhere = {};
         if (search && search.trim()) {
+            const term = search.trim().toLowerCase();
             patientWhere[Op.or] = [
-                { uhid: { [Op.iLike]: `%${search.trim()}%` } },
-                { full_name: { [Op.iLike]: `%${search.trim()}%` } }
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('Patient.uhid')), { [Op.like]: `%${term}%` }),
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('Patient.full_name')), { [Op.like]: `%${term}%` })
             ];
+            console.log(`[Admin] Patient search: "${search.trim()}"`);
         }
+
+        const hasSearch = search && search.trim().length > 0;
 
         // Count total matching admissions
         const totalCount = await Admission.count({
             where: { status: 'ACTIVE' },
             include: [{
                 model: Patient,
-                where: Object.keys(patientWhere).length > 0 ? patientWhere : undefined,
+                where: hasSearch ? patientWhere : undefined,
                 required: true
             }]
         });
@@ -316,7 +320,7 @@ exports.getPatients = async (req, res) => {
             include: [{
                 model: Patient,
                 attributes: ['id', 'full_name', 'uhid'],
-                where: Object.keys(patientWhere).length > 0 ? patientWhere : undefined,
+                where: hasSearch ? patientWhere : undefined,
                 required: true
             }],
             order: [['admitted_at', 'DESC']],
