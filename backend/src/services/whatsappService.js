@@ -50,13 +50,22 @@ const createClient = () => {
 
     client.on('auth_failure', (msg) => {
         console.error('[WhatsApp Web Client] Auth failure:', msg);
+        isReady = false;
         clearSessionCache();
+        console.log('[WhatsApp Web Client] Re-initializing client in 5 seconds due to auth failure...');
+        setTimeout(() => {
+            logoutWhatsApp();
+        }, 5000);
     });
 
     client.on('disconnected', (reason) => {
         console.warn('[WhatsApp Web Client] Disconnected:', reason);
         isReady = false;
         clearSessionCache();
+        console.log('[WhatsApp Web Client] Re-initializing client in 5 seconds due to disconnection...');
+        setTimeout(() => {
+            logoutWhatsApp();
+        }, 5000);
     });
 };
 
