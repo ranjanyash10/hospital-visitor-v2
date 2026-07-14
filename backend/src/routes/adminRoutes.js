@@ -36,6 +36,7 @@ router.post('/emergency/lockdown', controller.toggleLockdown);
 // Patient Visitor Management
 router.get('/patients', controller.getPatients);
 router.post('/patients/admit', controller.admitPatient);
+router.post('/patients/resend-all-whatsapp', controller.resendAllWhatsApp);
 router.patch('/admissions/:id/max-visitors', controller.updateMaxVisitors);
 router.patch('/admissions/:id/contact', controller.updatePatientContact);
 

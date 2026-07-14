@@ -44,6 +44,7 @@ const AdminDashboard = () => {
     const [passwords, setPasswords] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
     const [accountLoading, setAccountLoading] = useState(false);
     const [accountMsg, setAccountMsg] = useState({ type: '', text: '' });
+    const [resendingWhatsApp, setResendingWhatsApp] = useState(false);
 
     // Guard Management State
     const [showCreateGuard, setShowCreateGuard] = useState(false);
@@ -61,16 +62,19 @@ const AdminDashboard = () => {
         max_visitors: 1, visit_duration_hours: 1
     });
 
-    const fetchData = async () => {
+    const fetchControllerRef = useRef(null);
+
+    const fetchData = async (signal) => {
         setLoading(true);
         try {
             // Stats (Always fetch for KPIs)
-            const statsRes = await api.get('/admin/dashboard');
+            const statsRes = await api.get('/admin/dashboard', { signal });
             setStats(statsRes.data);
             setLockdown(statsRes.data.lockdown);
 
             if (activeView === 'registry') {
                 const slipsRes = await api.get('/admin/slips', {
+                    signal,
                     params: {
                         page: pagination.page,
                         limit: pagination.limit,
@@ -81,22 +85,23 @@ const AdminDashboard = () => {
                 setSlips(slipsRes.data.slips);
                 setPagination(slipsRes.data.pagination);
             } else if (activeView === 'human') {
-                const res = await api.get('/admin/guards');
+                const res = await api.get('/admin/guards', { signal });
                 setGuards(res.data);
             } else if (activeView === 'topology') {
-                const res = await api.get('/admin/topology');
+                const res = await api.get('/admin/topology', { signal });
                 setTopology(res.data);
             } else if (activeView === 'audit') {
-                const res = await api.get('/admin/audits', { params: { page: pagination.page } });
+                const res = await api.get('/admin/audits', { signal, params: { page: pagination.page } });
                 setAudits(res.data.audits);
                 setPagination(prev => ({ ...prev, total: res.data.total, pages: Math.ceil(res.data.total / 20) }));
             } else if (activeView === 'settings') {
-                const res = await api.get('/admin/settings');
+                const res = await api.get('/admin/settings', { signal });
                 setSettings(res.data);
                 const ld = res.data.find(s => s.key === 'SYSTEM_LOCKDOWN');
                 setLockdown(ld?.value === 'TRUE');
             } else if (activeView === 'patients') {
                 const res = await api.get('/admin/patients', {
+                    signal,
                     params: {
                         page: patientPagination.page,
                         limit: patientPagination.limit,
@@ -104,9 +109,15 @@ const AdminDashboard = () => {
                     }
                 });
                 setPatients(res.data.patients);
-                setPatientPagination(prev => ({ ...prev, ...res.data.pagination }));
+                // Only update total/pages from server, preserve current page to prevent bouncing
+                setPatientPagination(prev => ({
+                    ...prev,
+                    total: res.data.pagination.total,
+                    pages: res.data.pagination.pages
+                }));
             }
         } catch (error) {
+            if (error.name === 'AbortError' || error.name === 'CanceledError') return; // Silently ignore cancelled requests
             console.error(error);
         } finally {
             setLoading(false);
@@ -114,11 +125,20 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
-        fetchData();
+        // Cancel any in-flight request before starting a new one
+        if (fetchControllerRef.current) fetchControllerRef.current.abort();
+        const controller = new AbortController();
+        fetchControllerRef.current = controller;
+
+        fetchData(controller.signal);
+
         const interval = setInterval(() => {
-            if (activeView === 'registry') fetchData();
+            if (activeView === 'registry') fetchData(controller.signal);
         }, 30000);
-        return () => clearInterval(interval);
+        return () => {
+            controller.abort();
+            clearInterval(interval);
+        };
     }, [pagination.page, pagination.limit, filters, activeView, patientPagination.page, debouncedSearch]);
 
     const handleFilterChange = (e) => {
@@ -781,6 +801,20 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleResendAllWhatsApp = async () => {
+        if (!window.confirm("Are you sure you want to resend WhatsApp notifications to ALL active admissions? Messages will be sent sequentially with a rate-limiting delay in the background.")) return;
+        setResendingWhatsApp(true);
+        try {
+            await api.post('/admin/patients/resend-all-whatsapp');
+            alert("Bulk WhatsApp notification resend initiated successfully in the background!");
+        } catch (error) {
+            console.error(error);
+            alert(error.response?.data?.error || "Failed to initiate bulk resend");
+        } finally {
+            setResendingWhatsApp(false);
+        }
+    };
+
     const renderPatients = () => (
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -811,6 +845,14 @@ const AdminDashboard = () => {
                                 </button>
                             )}
                         </div>
+                        <button
+                            onClick={handleResendAllWhatsApp}
+                            disabled={resendingWhatsApp}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
+                        >
+                            <RefreshCw size={14} className={resendingWhatsApp ? "animate-spin" : ""} />
+                            {resendingWhatsApp ? "Resending..." : "Resend WhatsApps"}
+                        </button>
                         <button
                             onClick={() => setShowAdmitForm(true)}
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
@@ -1135,7 +1177,13 @@ const AdminDashboard = () => {
                                             <select className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold appearance-none" value={newAdmission.ward_category} onChange={e => {
                                                 const cat = e.target.value;
                                                 const isICU = !['GENERAL', 'PRIVATE', 'WARD'].includes(cat);
-                                                setNewAdmission({ ...newAdmission, ward_category: cat, ward_type: isICU ? 'GENERAL' : (cat === 'PRIVATE' ? 'PRIVATE' : 'GENERAL') });
+                                                const isNeuroIcu = cat === 'NEURO_ICU';
+                                                setNewAdmission({
+                                                    ...newAdmission,
+                                                    ward_category: cat,
+                                                    ward_type: isICU ? 'GENERAL' : (cat === 'PRIVATE' ? 'PRIVATE' : 'GENERAL'),
+                                                    max_visitors: isNeuroIcu ? 2 : 1
+                                                });
                                             }}>
                                                 <optgroup label="Standard Wards">
                                                     <option value="GENERAL">General Ward</option>

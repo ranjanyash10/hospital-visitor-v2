@@ -305,9 +305,16 @@ exports.getPatients = async (req, res) => {
 
         const hasSearch = search && search.trim().length > 0;
 
+        const admissionWhere = { status: 'ACTIVE' };
+        if (process.env.ICU_ONLY_ENABLED === 'true') {
+            admissionWhere.ward_category = {
+                [Op.notIn]: ['GENERAL', 'PRIVATE', 'WARD']
+            };
+        }
+
         // Count total matching admissions
         const totalCount = await Admission.count({
-            where: { status: 'ACTIVE' },
+            where: admissionWhere,
             include: [{
                 model: Patient,
                 where: hasSearch ? patientWhere : undefined,
@@ -316,7 +323,7 @@ exports.getPatients = async (req, res) => {
         });
 
         const admissions = await Admission.findAll({
-            where: { status: 'ACTIVE' },
+            where: admissionWhere,
             include: [{
                 model: Patient,
                 attributes: ['id', 'full_name', 'uhid'],
@@ -787,7 +794,7 @@ exports.admitPatient = async (req, res) => {
                 bed_number,
                 ward_type: ward_type || 'GENERAL',
                 ward_category: ward_category || 'WARD',
-                max_visitors: max_visitors || 1,
+                max_visitors: max_visitors !== undefined ? max_visitors : (ward_category === 'NEURO_ICU' ? 2 : 1),
                 visit_duration_hours: visit_duration_hours || 1,
                 status: 'ACTIVE',
                 admitted_at: new Date()
@@ -835,5 +842,69 @@ exports.admitPatient = async (req, res) => {
     } catch (error) {
         console.error('Admission Error:', error);
         res.status(500).json({ error: 'Failed to admit patient: ' + error.message });
+    }
+};
+
+exports.resendAllWhatsApp = async (req, res) => {
+    try {
+        const admissionWhere = { status: 'ACTIVE' };
+        if (process.env.ICU_ONLY_ENABLED === 'true') {
+            admissionWhere.ward_category = {
+                [Op.notIn]: ['GENERAL', 'PRIVATE', 'WARD']
+            };
+        }
+
+        const admissions = await Admission.findAll({
+            where: admissionWhere,
+            include: [{
+                model: Patient,
+                required: true
+            }]
+        });
+
+        const { sendRegistrationLink } = require('../services/otpService');
+
+        // Execute resend sequence sequentially with 2 seconds delay in background
+        (async () => {
+            let successCount = 0;
+            let failCount = 0;
+            console.log(`[Bulk WhatsApp] Starting bulk resend for ${admissions.length} active admissions...`);
+            for (const adm of admissions) {
+                const relative = await Relative.findOne({
+                    where: { patient_id: adm.Patient.id, is_primary: true }
+                });
+
+                if (relative && relative.mobile_number) {
+                    const cleanedMobile = relative.mobile_number.replace(/\D/g, '');
+                    if (cleanedMobile) {
+                        try {
+                            await sendRegistrationLink(
+                                cleanedMobile,
+                                adm.Patient.full_name,
+                                adm.Patient.uhid,
+                                adm.ward_type,
+                                adm.bed_number,
+                                adm.ward_category
+                            );
+                            successCount++;
+                            // Delay 2 seconds between messages
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                        } catch (err) {
+                            console.error(`[Bulk WhatsApp] Failed to resend to ${cleanedMobile}:`, err.message);
+                            failCount++;
+                        }
+                    }
+                }
+            }
+            console.log(`[Bulk WhatsApp] Completed. Success: ${successCount}, Fail: ${failCount}`);
+        })();
+
+        res.json({
+            success: true,
+            message: `Initiated resending notifications to ${admissions.length} active admissions in the background.`
+        });
+    } catch (error) {
+        console.error('Bulk WhatsApp Resend Error:', error);
+        res.status(500).json({ error: 'Server Error' });
     }
 };

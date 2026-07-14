@@ -531,7 +531,8 @@ const GuardDashboard = () => {
 
     const filteredSlips = todaySlips.filter(s => {
         if (statusFilter === 'VISITING') {
-            return s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU');
+            const isICU = s.ward_category && !['GENERAL', 'PRIVATE', 'WARD'].includes(s.ward_category);
+            return s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && isICU);
         }
         if (statusFilter === 'EXPIRED') {
             return s.status === 'EXPIRED' && s.expiryReason === 'AUTO_TIMEOUT' && s.scanned_count > 0;
@@ -698,7 +699,7 @@ const GuardDashboard = () => {
                                         onClick={() => setStatusFilter('VISITING')}
                                         className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${statusFilter === 'VISITING' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
-                                        Visiting ({todaySlips.filter(s => s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category === 'ICU')).length})
+                                        Visiting ({todaySlips.filter(s => s.status === 'VISITING' || (s.status === 'ACTIVE' && s.scanned_count === 1 && s.ward_category && !['GENERAL', 'PRIVATE', 'WARD'].includes(s.ward_category))).length})
                                     </button>
                                     <button
                                         onClick={() => setStatusFilter('EXPIRED')}

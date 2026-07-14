@@ -126,7 +126,9 @@ exports.verifySlip = async (req, res) => {
                 status = 'DENIED';
                 reason = `Access Denied: Patient already has ${currentVisitingCount} visitor(s) inside. Max allowed is ${maxAllowed}. Please wait for others to exit.`;
             } else {
-                if (slip.ward_category === 'ICU') {
+                const isICU = slip.ward_category && !['GENERAL', 'PRIVATE', 'WARD'].includes(slip.ward_category);
+                const twoChecks = isICU && process.env.ICU_TWO_CHECKS_ENABLED !== 'false';
+                if (twoChecks) {
                     if (slip.scanned_count === 0) {
                         slip.scanned_count = 1;
                         await slip.save();
@@ -295,7 +297,9 @@ exports.acceptSlip = async (req, res) => {
             return res.status(400).json({ error: `Cannot accept slip in ${slip.status} state` });
         }
 
-        if (slip.ward_category === 'ICU') {
+        const isICU = slip.ward_category && !['GENERAL', 'PRIVATE', 'WARD'].includes(slip.ward_category);
+        const twoChecks = isICU && process.env.ICU_TWO_CHECKS_ENABLED !== 'false';
+        if (twoChecks) {
             if (slip.scanned_count === 0) {
                 slip.scanned_count = 1;
             } else if (slip.scanned_count === 1) {

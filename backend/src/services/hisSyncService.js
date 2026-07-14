@@ -188,13 +188,14 @@ const autoAdmitPatient = async (data) => {
         });
 
         // Create Admission
+        const isNeuroIcu = data.ward_category === 'NEURO_ICU';
         const admission = await Admission.create({
             patient_id: patient.id,
             room_number: data.room_number,
             bed_number: data.bed_number,
             ward_type: data.ward_type,
             ward_category: data.ward_category || 'WARD',
-            max_visitors: 1,
+            max_visitors: isNeuroIcu ? 2 : 1,
             visit_duration_hours: 1,
             status: 'ACTIVE',
             admitted_at: new Date()
@@ -297,6 +298,12 @@ const runSync = async () => {
         let admittedCount = 0;
         for (const data of hisData) {
             if (!data.uhid || !data.mobile_number) continue;
+
+            // If ICU_ONLY_ENABLED is true, filter out non-ICU patients
+            if (process.env.ICU_ONLY_ENABLED === 'true') {
+                const isICU = !['GENERAL', 'PRIVATE', 'WARD'].includes(data.ward_category);
+                if (!isICU) continue;
+            }
 
             // Check if this UHID already has an active admission in our VMS
             const existingAdmission = await Admission.findOne({
